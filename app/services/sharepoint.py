@@ -188,6 +188,24 @@ class SharePointMatchScoreUpdater:
         else:
             return content.decode("utf-8", errors="replace")
 
+    def find_txt_version(self, folder_name: str, original_filename: str) -> dict | None:
+        """Find the corresponding .txt file in the Text Files/Resumes/{folder_name} directory."""
+        from pathlib import Path
+        
+        txt_folder_path = f"{Config.SHAREPOINT_RESUME_TXT_FOLDER}/{folder_name}"
+        stem = Path(original_filename).stem
+        target_name = f"{stem}.txt".lower()
+
+        try:
+            children = self._list_folder_children(txt_folder_path)
+            for item in children:
+                if "file" in item and item["name"].lower() == target_name:
+                    return {"id": item["id"], "name": item["name"]}
+        except Exception as e:
+            print(f"[SP] Error finding txt version for {original_filename} in {folder_name}: {e}")
+            
+        return None
+
     # ── File lookup & Metadata ───────────────────────────────────────────────
 
     def find_matching_items(self, filename: str, role_hint: str = "") -> list[dict]:

@@ -37,5 +37,6 @@ class Config:
     SHAREPOINT_SITE_PATH = os.getenv("SHAREPOINT_SITE_PATH")
     SHAREPOINT_DRIVE_NAME = os.getenv("SHAREPOINT_DRIVE_NAME")
     SHAREPOINT_BASE_FOLDER = os.getenv("SHAREPOINT_BASE_FOLDER", "Resumes")
-    SHAREPOINT_JD_FOLDER = os.getenv("SHAREPOINT_JD_FOLDER", "JobDescriptions")
+    SHAREPOINT_JD_FOLDER = os.getenv("SHAREPOINT_JD_FOLDER", "Text Files/jobDescription")
+    SHAREPOINT_RESUME_TXT_FOLDER = os.getenv("SHAREPOINT_RESUME_TXT_FOLDER", "Text Files/Resumes")
     MAILBOX_USER = os.getenv("MAILBOX_USER")
