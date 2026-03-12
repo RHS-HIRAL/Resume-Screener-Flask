@@ -20,27 +20,14 @@ DEFAULT_PROMPT_TEMPLATE = (
     "Evaluate this transcript:\n\n{TRANSCRIPT}\n\nAgainst these QA guidelines:\n\n{QA}"
 )
 
-# ── Global Clients ────────────────────────────────────────────────────────────
-_gemini_client = (
-    genai.Client(api_key=Config.GOOGLE_API_KEY) if Config.GOOGLE_API_KEY else None
-)
-_sarvam_client = (
-    SarvamAI(api_subscription_key=Config.SARVAM_API_KEY)
-    if Config.SARVAM_API_KEY
-    else None
-)
+# ── Global Clients & State ────────────────────────────────────────────────────────────
+_SARVAM_JOB_KEYS: dict[str, str] = {}
 
 _CACHED_QA_TEXT: Optional[str] = None
 _CACHED_PROMPT_TEMPLATE: Optional[str] = None
 
-# FIX: _BASE resolves to project root regardless of where this file lives.
-# If file is at app/services/call_qa.py → .parent×3 = project root. ✓
-# If file is at project root directly   → .parent×1 = project root, so we
-# walk upward until we find QA.txt as a safety net (see load_prompt_resources).
 _BASE = Path(__file__).resolve().parent.parent.parent
 
-# Sarvam job_state values (mixed-case exactly as returned by the API)
-# NOTE: get_status() returns these strings — get_job() does NOT expose job_state.
 _SARVAM_DONE_STATES = {"Completed"}
 _SARVAM_FAIL_STATES = {"Failed"}
 
@@ -56,21 +43,33 @@ def start_transcription(audio_path: str) -> str:
     The file is fully uploaded synchronously before this function returns, so the
     caller can safely delete the temp file once this call completes.
     """
-    if not _sarvam_client:
-        raise EnvironmentError("SARVAM_API_KEY is not set in .env")
+
+    if not Config.SARVAM_API_KEYS:
+        raise EnvironmentError("No SARVAM_API_KEYs are set in .env")
 
     print(f"[QA STT] Starting transcription job for: {audio_path}")
+    last_exception = None
 
-    job = _sarvam_client.speech_to_text_translate_job.create_job(
-        model="saaras:v3",
-        with_diarization=True,
+    for api_key in Config.SARVAM_API_KEYS:
+        try:
+            client = SarvamAI(api_subscription_key=api_key)
+            job = client.speech_to_text_translate_job.create_job(
+                model="saaras:v3",
+                with_diarization=True,
+            )
+            job.upload_files(file_paths=[audio_path], timeout=300)
+            job.start()
+
+            print(f"[QA STT] Job started → job_id={job.job_id}")
+            _SARVAM_JOB_KEYS[job.job_id] = api_key  # Stores key used for this job
+            return job.job_id
+        except Exception as e:
+            print(f"[QA STT WARN] API Key failed. Error: {e}. Trying next...")
+            last_exception = e
+
+    raise RuntimeError(
+        f"[QA STT ERROR] All Sarvam keys failed. Last error: {last_exception}"
     )
-    # upload_files is synchronous — file is fully sent before we proceed
-    job.upload_files(file_paths=[audio_path], timeout=300)
-    job.start()
-
-    print(f"[QA STT] Job started → job_id={job.job_id}")
-    return job.job_id
 
 
 def check_transcription_status(job_id: str) -> Tuple[bool, Optional[str]]:
@@ -83,11 +82,14 @@ def check_transcription_status(job_id: str) -> Tuple[bool, Optional[str]]:
     job_state values per Sarvam API spec:
         'Accepted' | 'Pending' | 'Running' | 'Completed' | 'Failed'
     """
-    if not _sarvam_client:
-        raise EnvironmentError("SARVAM_API_KEY is not set in .env")
+    api_key = _SARVAM_JOB_KEYS.get(job_id)
+    if not api_key:
+        raise RuntimeError(f"Sarvam API key for job {job_id} not found in memory.")
+
+    client = SarvamAI(api_subscription_key=api_key)
 
     # ✅ Correct polling method
-    status = _sarvam_client.speech_to_text_translate_job.get_status(job_id=job_id)
+    status = client.speech_to_text_translate_job.get_status(job_id=job_id)
 
     job_state: str = getattr(status, "job_state", None) or ""
     print(f"[QA STT] Job {job_id} → state={job_state!r}")
@@ -97,15 +99,12 @@ def check_transcription_status(job_id: str) -> Tuple[bool, Optional[str]]:
         raise RuntimeError(f"Sarvam STT job {job_id} failed: {error_msg}")
 
     if job_state not in _SARVAM_DONE_STATES:
-        # Still Accepted / Pending / Running — keep polling
         return False, None
 
     # ── Job Completed — download outputs ─────────────────────────────────────
-    # Only use get_job() here (for its download_outputs() helper), never for polling.
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir_path = Path(temp_dir)
-
-        job = _sarvam_client.speech_to_text_translate_job.get_job(job_id)
+        job = client.speech_to_text_translate_job.get_job(job_id)
         job.download_outputs(output_dir=str(temp_dir_path))
 
         json_files = list(temp_dir_path.glob("*.json"))
@@ -195,11 +194,10 @@ def score_transcript(
     Send transcript + QA sheet to Gemini for scoring.
     Returns {"score_text": str, "token_meta": dict}.
     """
-    if not _gemini_client:
-        raise EnvironmentError("GOOGLE_API_KEY is not set in .env")
+    if not Config.GOOGLE_API_KEYS:
+        raise EnvironmentError("No GOOGLE_API_KEYs are set in .env")
 
     res_qa, res_pt = load_prompt_resources()
-
     final_qa = qa_text.strip() if qa_text.strip() else res_qa
     final_pt = prompt_template.strip() if prompt_template.strip() else res_pt
     if not final_pt:
@@ -214,22 +212,35 @@ def score_transcript(
     prompt = final_pt.replace("{QA}", final_qa).replace("{TRANSCRIPT}", transcript)
 
     print(f"[QA Gemini] Sending {len(prompt)} chars to {GEMINI_MODEL_ID}…")
-    response = _gemini_client.models.generate_content(
-        model=GEMINI_MODEL_ID,
-        contents=prompt,
-        config=types.GenerateContentConfig(temperature=0.2),
+
+    last_exception = None
+
+    for api_key in Config.GOOGLE_API_KEYS:
+        try:
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=GEMINI_MODEL_ID,
+                contents=prompt,
+                config=types.GenerateContentConfig(temperature=0.2),
+            )
+
+            usage = response.usage_metadata
+            token_meta = {
+                "prompt_tokens": getattr(usage, "prompt_token_count", "N/A"),
+                "candidates_tokens": getattr(usage, "candidates_token_count", "N/A"),
+                "total_tokens": getattr(usage, "total_token_count", "N/A"),
+                "model": GEMINI_MODEL_ID,
+            }
+            print(f"[QA Gemini] Done. tokens={token_meta['total_tokens']}")
+            return {"score_text": response.text, "token_meta": token_meta}
+
+        except Exception as e:
+            print(f"[QA Gemini WARN] API Key failed. Error: {e}. Trying next...")
+            last_exception = e
+
+    raise RuntimeError(
+        f"[QA Gemini ERROR] All Google keys failed. Last error: {last_exception}"
     )
-
-    usage = response.usage_metadata
-    token_meta = {
-        "prompt_tokens": getattr(usage, "prompt_token_count", "N/A"),
-        "candidates_tokens": getattr(usage, "candidates_token_count", "N/A"),
-        "total_tokens": getattr(usage, "total_token_count", "N/A"),
-        "model": GEMINI_MODEL_ID,
-    }
-    print(f"[QA Gemini] Done. tokens={token_meta['total_tokens']}")
-
-    return {"score_text": response.text, "token_meta": token_meta}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -244,28 +255,26 @@ def _background_qa_pipeline(
     qa_text: str,
     prompt_template: str,
 ):
-    """Internal thread target: waits for STT, scores with Gemini, saves to DB."""
-    if not _sarvam_client:
-        print("[QA ERROR] Background pipeline aborted: SARVAM_API_KEY is not set.")
+    if not Config.SARVAM_API_KEYS:
+        print("[QA ERROR] Background pipeline aborted: SARVAM_API_KEYS not set.")
         return
-    try:
-        # 1. Start job and block ONLY this background thread until complete
-        job_id = start_transcription(audio_path)
 
-        # wait_until_complete() blocks the background thread (not the web server)
-        job = _sarvam_client.speech_to_text_translate_job.get_job(job_id)
+    job_id = None
+    try:
+        job_id = start_transcription(audio_path)
+        api_key = _SARVAM_JOB_KEYS.get(job_id)
+        client = SarvamAI(api_subscription_key=api_key)
+
+        job = client.speech_to_text_translate_job.get_job(job_id)
         job.wait_until_complete()
 
-        # Now safe to call check_transcription_status (uses get_status for state)
         is_complete, conversation_text = check_transcription_status(job_id)
         if not is_complete or not conversation_text:
             print(f"[QA ERROR] Job {job_id} reported complete but returned no text.")
             return
 
-        # 2. Score with Gemini
         scoring_result = score_transcript(conversation_text, qa_text, prompt_template)
 
-        # 3. Persist to database
         save_qa_result(
             candidate_fk=candidate_fk,
             audio_filename=audio_filename,
@@ -281,7 +290,9 @@ def _background_qa_pipeline(
     except Exception as e:
         print(f"[QA ERROR] Background pipeline failed: {e}")
     finally:
-        # Clean up temp audio file regardless of outcome
+        if job_id:
+            _SARVAM_JOB_KEYS.pop(job_id, None)
+
         if audio_path and os.path.exists(audio_path):
             try:
                 os.remove(audio_path)
