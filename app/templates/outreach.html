@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Outreach | Resume Screener{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-end;">
+    <div>
+        <h1 class="page-title">Candidate Outreach</h1>
+        <p class="page-subtitle">Engage shortlisted talent and distribute screening forms to accelerate your hiring pipeline.</p>
+    </div>
+    <div style="display: flex; gap: 1rem;">
+        <button id="bulkOutreachBtn" class="btn btn-primary" disabled>
+            <i class="fa-solid fa-envelope-bulk"></i> Send Bulk Outreach (<span id="selectedCount">0</span>)
+        </button>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 2rem; display: flex; gap: 2rem; align-items: center; padding: 1.2rem 2rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <label class="form-label" style="margin-bottom: 0;">Filter by Role:</label>
+        <select id="roleFilter" class="form-control" style="width: auto; min-width: 200px;">
+            <option value="">All Roles</option>
+            {% for role in roles %}
+            <option value="{{ role.role_name }}">{{ role.role_name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <label class="form-label" style="margin-bottom: 0;">Min Score:</label>
+        <input type="number" id="scoreFilter" class="form-control" style="width: 80px;" value="0" min="0" max="100">
+    </div>
+    <div style="margin-left: auto; color: var(--text-secondary); font-size: 0.85rem;">
+        Showing <span id="candidateCount">0</span> candidates
+    </div>
+</div>
+
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead>
+            <tr
+                style="background: rgba(255,255,255,0.02); color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase;">
+                <th style="padding: 1rem 1.5rem; width: 40px;"><input type="checkbox" id="selectAll"></th>
+                <th style="padding: 1rem 1.5rem; width: 80px;">ID</th>
+                <th style="padding: 1rem 1.5rem;">Candidate</th>
+                <th style="padding: 1rem 1.5rem;">Role Name</th>
+                <th style="padding: 1rem 1.5rem;">Match Score</th>
+                <th style="padding: 1rem 1.5rem;">Status</th>
+                <th style="padding: 1rem 1.5rem; text-align: right;">Action</th>
+            </tr>
+        </thead>
+        <tbody id="candidateTableBody">
+            <!-- Populated by JS -->
+        </tbody>
+    </table>
+    <div class="table-scroll-x table-scroll-y"></div>
+</div>
+
+<!-- Modal for outreach configuration -->
+<div id="outreachModal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
+    <div class="card glass-panel" style="width: 500px; padding: 2.5rem;">
+        <h2 style="margin-bottom: 1.5rem;">Outreach Settings</h2>
+
+        <div class="form-group">
+            <label class="form-label">MS Form / Google Form Link</label>
+            <input type="url" id="formLink" class="form-control" placeholder="https://forms.office.com/r/your-form-id">
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Custom Message (Optional)</label>
+            <textarea id="customMessage" class="form-control" rows="4"
+                placeholder="Personalized note to candidates..."></textarea>
+        </div>
+
+        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+            <button id="cancelOutreach" class="btn" style="flex: 1; background: rgba(255,255,255,0.05);">Cancel</button>
+            <button id="confirmOutreach" class="btn btn-primary" style="flex: 2;">Confirm & Send Emails</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let allCandidates = [];
+
+    async function loadCandidates() {
+        const role = document.getElementById('roleFilter').value;
+        const score = document.getElementById('scoreFilter').value;
+
+        try {
+            const resp = await fetch(`/api/candidates?role=${encodeURIComponent(role)}&min_score=${score}`);
+            allCandidates = await resp.json();
+            renderCandidates();
+        } catch (err) {
+            console.error('Failed to load candidates', err);
+        }
+    }
+
+    function renderCandidates() {
+        const body = document.getElementById('candidateTableBody');
+        const count = document.getElementById('candidateCount');
+        body.innerHTML = '';
+
+        allCandidates.forEach(c => {
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid var(--border-color)';
+
+            const statusBadge = c.outreach_sent
+                ? `<span style="padding: 0.2rem 0.6rem; border-radius: 99px; background: rgba(16,185,129,0.1); color: var(--accent-emerald); font-size: 0.75rem; font-weight: 600;">SENT</span>`
+                : `<span style="padding: 0.2rem 0.6rem; border-radius: 99px; background: rgba(255,255,255,0.05); color: var(--text-secondary); font-size: 0.75rem; font-weight: 600;">PENDING</span>`;
+
+            row.innerHTML = `
+            <td style="padding: 1rem 1.5rem;"><input type="checkbox" class="candidate-check" data-id="${c.id}"></td>
+            <td style="padding: 1rem 1.5rem; font-family: monospace; font-weight: 600; color: var(--accent-indigo);">${c.candidate_id || '---'}</td>
+            <td style="padding: 1rem 1.5rem;">
+                <div style="font-weight: 600;">${c.full_name}</div>
+                <div style="font-size: 0.8rem; color: var(--text-secondary);">${c.email}</div>
+            </td>
+            <td style="padding: 1rem 1.5rem; font-size: 0.9rem;">${c.role_name}</td>
+            <td style="padding: 1rem 1.5rem;">
+                <div style="font-weight: 700; color: ${c.match_score >= 75 ? 'var(--accent-emerald)' : (c.match_score >= 50 ? 'var(--accent-amber)' : 'var(--accent-rose)')};">
+                    ${c.match_score}%
+                </div>
+            </td>
+            <td style="padding: 1rem 1.5rem;">${statusBadge}</td>
+            <td style="padding: 1rem 1.5rem; text-align: right;">
+                <button class="btn single-outreach" data-id="${c.id}" style="padding: 0.4rem; background: transparent; color: var(--accent-indigo);">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </td>
+        `;
+            body.appendChild(row);
+        });
+
+        count.innerText = allCandidates.length;
+        setupEventListeners();
+    }
+
+    function setupEventListeners() {
+        // Checkbox logic
+        const checks = document.querySelectorAll('.candidate-check');
+        const selectAll = document.getElementById('selectAll');
+        const bulkBtn = document.getElementById('bulkOutreachBtn');
+        const countSpan = document.getElementById('selectedCount');
+
+        const updateSelection = () => {
+            const selected = document.querySelectorAll('.candidate-check:checked');
+            countSpan.innerText = selected.length;
+            bulkBtn.disabled = selected.length === 0;
+        };
+
+        checks.forEach(c => c.onclick = updateSelection);
+        selectAll.onclick = () => {
+            checks.forEach(c => c.checked = selectAll.checked);
+            updateSelection();
+        };
+
+        // Outreach Buttons
+        document.querySelectorAll('.single-outreach').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.candidate-check').forEach(c => c.checked = false);
+                document.querySelector(`.candidate-check[data-id="${btn.dataset.id}"]`).checked = true;
+                updateSelection();
+                showModal();
+            };
+        });
+    }
+
+    function showModal() {
+        document.getElementById('outreachModal').style.display = 'flex';
+    }
+
+    document.getElementById('cancelOutreach').onclick = () => {
+        document.getElementById('outreachModal').style.display = 'none';
+    };
+
+    document.getElementById('bulkOutreachBtn').onclick = showModal;
+
+    document.getElementById('confirmOutreach').onclick = async () => {
+        const selectedIds = Array.from(document.querySelectorAll('.candidate-check:checked')).map(c => parseInt(c.dataset.id));
+        const formLink = document.getElementById('formLink').value;
+        const customMessage = document.getElementById('customMessage').value;
+        const btn = document.getElementById('confirmOutreach');
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
+
+        try {
+            const resp = await fetch('/api/outreach', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidate_ids: selectedIds,
+                    form_link: formLink,
+                    custom_message: customMessage
+                })
+            });
+
+            const result = await resp.json();
+            alert(`Successfully sent ${result.sent} emails. ${result.failed} failed.`);
+            document.getElementById('outreachModal').style.display = 'none';
+            loadCandidates();
+        } catch (err) {
+            alert('Failed to send outreach: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Confirm & Send Emails';
+        }
+    };
+
+    document.getElementById('roleFilter').onchange = loadCandidates;
+    document.getElementById('scoreFilter').oninput = loadCandidates;
+
+    // Initial Load
+    loadCandidates();
+</script>
+{% endblock %}

@@ -1,0 +1,666 @@
+{% extends "base.html" %}
+
+{% block title %}Review Responses | Resume Screener{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-end;">
+    <div>
+        <h1 class="page-title">Form Submissions</h1>
+        <p class="page-subtitle">Review candidate form responses and move them to the next hiring stage.</p>
+    </div>
+    <div style="display: flex; gap: 1rem;">
+        <button id="recalcScoreBtn" class="btn"
+            style="background: rgba(16,185,129,0.15); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.3);"
+            onclick="recalcFormScores()">
+            <i class="fa-solid fa-calculator"></i> <span id="recalcBtnText">Recalculate Scores</span>
+        </button>
+        <button id="refreshSyncBtn" class="btn btn-primary" onclick="triggerManualSync()">
+            <i class="fa-solid fa-sync fa-spin-hover"></i> <span id="syncBtnText">Sync Responses</span>
+        </button>
+    </div>
+</div>
+
+<!-- Bulk Action Bar at Top -->
+<div id="bulkActionBar" class="card d-none"
+    style="margin-bottom: 1.5rem; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); padding: 0.8rem 1.5rem; display: flex; align-items: center; justify-content: space-between; border-radius: 12px; backdrop-filter: blur(10px);">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+        <span id="selectedCountMsg" style="color: var(--text-primary); font-weight: 600; font-size: 0.9rem;">0
+            selected</span>
+        <div style="width: 1px; height: 1.5rem; background: rgba(255,255,255,0.1);"></div>
+        <div style="display: flex; gap: 0.75rem;">
+            <button class="btn btn-sm"
+                style="background: rgba(16,185,129,0.15); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.3); padding: 0.3rem 0.75rem; font-size: 0.8rem;"
+                onclick="triggerBulkUpdate('Selected')">
+                <i class="fa-solid fa-check-circle me-1"></i> Bulk Select
+            </button>
+            <button class="btn btn-sm"
+                style="background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); padding: 0.3rem 0.75rem; font-size: 0.8rem;"
+                onclick="triggerBulkUpdate('Not Selected')">
+                <i class="fa-solid fa-circle-xmark me-1"></i> Bulk Not Selected
+            </button>
+            <button class="btn btn-sm"
+                style="background: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid rgba(255,255,255,0.1); padding: 0.3rem 0.75rem; font-size: 0.8rem;"
+                onclick="triggerBulkUpdate('Pending')">
+                <i class="fa-solid fa-pencil me-1"></i> Bulk Pending
+            </button>
+        </div>
+    </div>
+    <button class="btn btn-sm" style="background: transparent; border: none; color: var(--text-secondary);"
+        onclick="clearSelection()">
+        Cancel
+    </button>
+</div>
+
+<div class="card"
+    style="margin-bottom: 2rem; display: flex; gap: 2rem; align-items: center; padding: 1.2rem 2rem; position: relative;">
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <label class="form-label" style="margin-bottom: 0;">Filter by Role:</label>
+        <select id="roleFilter" class="form-control" style="width: auto; min-width: 200px;" onchange="loadResponses()">
+            <option value="">All Roles</option>
+            {% for role in roles %}
+            <option value="{{ role.role_name }}" data-id="{{ role.id }}">{{ role.role_name }}</option>
+            {% endfor %}
+        </select>
+        <button id="weightConfigBtn" class="btn"
+            style="padding: 0.5rem 0.75rem; display: none; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); font-size: 0.8rem;"
+            onclick="toggleWeightPopover()">
+            <i class="fa-solid fa-gear me-1"></i> Set Weights
+        </button>
+    </div>
+
+    <!-- Flipkart-style Weight Popover -->
+    <div id="weightPopover" class="glass-panel"
+        style="display: none; position: absolute; top: 100%; left: 2rem; margin-top: 5px; width: 340px; z-index: 1000; border: 1px solid rgba(255,255,255,0.1); padding: 1.5rem; box-shadow: 0 20px 60px rgba(0,0,0,0.6); backdrop-filter: blur(20px);">
+        <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-primary);">Scoring Weights: <span
+                id="weightRoleTitle" style="color: var(--accent-indigo);"></span></h4>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div class="weight-item" style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="font-size: 0.8rem; color: var(--text-secondary);">Location</label>
+                <input type="number" id="w_location" class="form-control" style="width: 60px; padding: 0.3rem;"
+                    value="25" min="0" oninput="updateWeightTotal()">
+            </div>
+            <div class="weight-item" style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="font-size: 0.8rem; color: var(--text-secondary);">Relocate</label>
+                <input type="number" id="w_relocate" class="form-control" style="width: 60px; padding: 0.3rem;"
+                    value="20" min="0" oninput="updateWeightTotal()">
+            </div>
+            <div class="weight-item" style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="font-size: 0.8rem; color: var(--text-secondary);">Notice Period</label>
+                <input type="number" id="w_notice" class="form-control" style="width: 60px; padding: 0.3rem;" value="25"
+                    min="0" oninput="updateWeightTotal()">
+            </div>
+            <div class="weight-item" style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="font-size: 0.8rem; color: var(--text-secondary);">Salary</label>
+                <input type="number" id="w_salary" class="form-control" style="width: 60px; padding: 0.3rem;" value="15"
+                    min="0" oninput="updateWeightTotal()">
+            </div>
+            <div class="weight-item" style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="font-size: 0.8rem; color: var(--text-secondary);">Immediate</label>
+                <input type="number" id="w_immediate" class="form-control" style="width: 60px; padding: 0.3rem;"
+                    value="15" min="0" oninput="updateWeightTotal()">
+            </div>
+        </div>
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.05);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                <span style="font-size: 0.75rem; color: var(--text-secondary);">Total Score:</span>
+                <span id="weightTotal"
+                    style="font-size: 0.75rem; font-weight: 700; color: var(--accent-indigo);">100</span>
+            </div>
+            <button class="btn btn-primary" style="width: 100%; font-size: 0.8rem;" onclick="saveWeights()">Save
+                Weights</button>
+        </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <label class="form-label" style="margin-bottom: 0;">Form Review:</label>
+        <select id="statusFilter" class="form-control" style="width: auto; min-width: 150px;"
+            onchange="loadResponses()">
+            <option value="">All</option>
+            <option value="PENDING">Pending</option>
+            <option value="SELECTED">Selected</option>
+            <option value="NOT SELECTED">Not Selected</option>
+        </select>
+    </div>
+    <div style="margin-left: auto; color: var(--text-secondary); font-size: 0.85rem;">
+        <span id="respondedCount">0</span> submissions received
+    </div>
+</div>
+
+<div class="card" style="padding: 0; overflow: hidden;">
+    <div id="loadingOverlay" style="padding: 4rem; text-align: center;">
+        <i class="fa-solid fa-spinner fa-spin"
+            style="font-size: 2rem; color: var(--accent-indigo); margin-bottom: 1rem;"></i>
+        <p style="color: var(--text-secondary);">Synchronizing with SharePoint...</p>
+    </div>
+
+    <div id="tableContainer" class="d-none table-scroll-x">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead>
+                <tr
+                    style="background: rgba(255,255,255,0.02); color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase;">
+                    <th style="padding: 1rem 1.5rem; width: 40px;">
+                        <input type="checkbox" id="selectAllCheck" onclick="toggleAllCheckboxes(this)"
+                            style="cursor: pointer; width: 16px; height: 16px;">
+                    </th>
+                    <th style="padding: 1rem 1.5rem;">Candidate</th>
+                    <th style="padding: 1rem 1.5rem;">Relocate</th>
+                    <th style="padding: 1rem 1.5rem;">Notice Period</th>
+                    <th style="padding: 1rem 1.5rem;">Match Score</th>
+                    <th style="padding: 1rem 1.5rem;">Form Score</th>
+                    <th style="padding: 1rem 1.5rem;">Selection Status</th>
+                    <th style="padding: 1rem 1.5rem; text-align: center;">Action</th>
+                </tr>
+            </thead>
+            <tbody id="responsesTableBody">
+                <!-- Populated by JS -->
+            </tbody>
+        </table>
+
+    </div>
+
+    <div id="emptyState" class="d-none" style="padding: 4rem; text-align: center;">
+        <i class="fa-solid fa-clipboard-question"
+            style="font-size: 3rem; color: var(--text-secondary); opacity: 0.2; margin-bottom: 1.5rem;"></i>
+        <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">No Submissions Yet</h3>
+        <p style="color: var(--text-secondary);">Candidates who complete the Microsoft Form will appear here.</p>
+    </div>
+</div>
+
+<!-- Modal for response details -->
+<div id="responseModal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; align-items: center; justify-content: center; backdrop-filter: blur(8px);">
+    <div class="card glass-panel"
+        style="width: 700px; max-height: 85vh; padding: 0; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.1);">
+        <div
+            style="padding: 1.5rem 2rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+            <h2 id="modalTitle" style="margin: 0; font-size: 1.25rem;">Candidate Response</h2>
+            <button id="closeModal"
+                style="background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.25rem;">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div id="modalContent" style="padding: 2rem; overflow-y: auto; flex: 1;">
+            <!-- Questions and Answers -->
+        </div>
+
+        <div
+            style="padding: 1.5rem 2rem; border-top: 1px solid var(--border-color); display: flex; gap: 1rem; background: rgba(0,0,0,0.2);">
+            <button class="btn"
+                style="flex: 1; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);"
+                onclick="updateStatus('Not Selected')">
+                <i class="fa-solid fa-user-xmark"></i> Not Selected
+            </button>
+            <button class="btn btn-primary" style="flex: 2;" onclick="updateStatus('Selected')">
+                <i class="fa-solid fa-user-check"></i> Select for Call
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .fa-spin-hover:hover {
+        animation: fa-spin 2s infinite linear;
+    }
+
+    .qa-box {
+        margin-bottom: 1.5rem;
+        padding-bottom: 1.2rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .qa-box:last-child {
+        border-bottom: none;
+    }
+
+    .qa-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        font-weight: 700;
+        margin-bottom: 0.4rem;
+    }
+
+    .qa-value {
+        color: var(--text-primary);
+        font-size: 1rem;
+        line-height: 1.5;
+    }
+
+    .d-none {
+        display: none !important;
+    }
+
+    .candidate-link {
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+
+    .candidate-link:hover {
+        color: var(--accent-indigo) !important;
+        text-decoration: underline;
+    }
+
+    .action-icon {
+        cursor: pointer;
+        padding: 0.4rem;
+        border-radius: 4px;
+        transition: all 0.2s;
+        font-size: 1.1rem;
+    }
+
+    .action-icon.check:hover {
+        color: var(--accent-emerald);
+        background: rgba(16, 185, 129, 0.1);
+    }
+
+    .action-icon.cancel:hover {
+        color: #ef4444;
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .action-icon.pencil:hover {
+        color: var(--text-secondary);
+        background: rgba(255, 255, 255, 0.05);
+    }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentCandidateId = null;
+
+    async function loadResponses() {
+        const roleSelect = document.getElementById('roleFilter');
+        const role = roleSelect.value;
+        const selectedOption = roleSelect.options[roleSelect.selectedIndex];
+        const jobId = selectedOption.getAttribute('data-id');
+
+        // Show/hide weight config button
+        const weightBtn = document.getElementById('weightConfigBtn');
+        if (role) {
+            weightBtn.style.display = 'inline-block';
+            // Also close popover if switching roles to avoid confusion
+            document.getElementById('weightPopover').style.display = 'none';
+            document.getElementById('weightRoleTitle').innerText = role;
+
+            // OPTIONAL: Reset weights to defaults or load from data if we had it
+            // For now, reset to standard defaults when switching role to prevent leftover values
+            resetWeightInputs();
+        } else {
+            weightBtn.style.display = 'none';
+            document.getElementById('weightPopover').style.display = 'none';
+        }
+
+        const statusFilter = document.getElementById('statusFilter').value;
+        const body = document.getElementById('responsesTableBody');
+        const overlay = document.getElementById('loadingOverlay');
+        const table = document.getElementById('tableContainer');
+        const empty = document.getElementById('emptyState');
+        const count = document.getElementById('respondedCount');
+
+        overlay.classList.remove('d-none');
+        table.classList.add('d-none');
+        empty.classList.add('d-none');
+
+        try {
+            const resp = await fetch(`/api/candidates?role=${encodeURIComponent(role)}`);
+            const candidates = await resp.json();
+
+            // Filter only candidates with form responses AND matching the status filter
+            const responded = candidates.filter(c => {
+                const hasForm = !!c.form_responses;
+                const currentStatus = (c.selection_status || 'PENDING').toUpperCase();
+                const statusMatch = !statusFilter || currentStatus === statusFilter.toUpperCase();
+                return hasForm && statusMatch;
+            });
+
+            overlay.classList.add('d-none');
+            count.innerText = responded.length;
+
+            if (responded.length === 0) {
+                empty.classList.remove('d-none');
+                return;
+            }
+
+            table.classList.remove('d-none');
+            body.innerHTML = '';
+
+            responded.forEach(c => {
+                const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid var(--border-color)';
+
+                const responses = c.form_responses || {};
+                const relocate = responses["Willing to Relocate?"] || responses["Relocate"] || "-";
+                const notice = responses["Notice Period"] || "-";
+
+                const currentStatus = (c.selection_status || 'PENDING').toUpperCase();
+                let statusColor = 'var(--text-secondary)';
+                let statusBg = 'rgba(255,255,255,0.05)';
+
+                if (currentStatus === 'SELECTED') {
+                    statusColor = 'var(--accent-emerald)';
+                    statusBg = 'rgba(16,185,129,0.1)';
+                } else if (currentStatus === 'NOT SELECTED') {
+                    statusColor = '#ef4444';
+                    statusBg = 'rgba(239,68,68,0.1)';
+                } else if (currentStatus === 'PENDING') {
+                    statusColor = 'var(--accent-indigo)';
+                    statusBg = 'rgba(99,102,241,0.1)';
+                }
+
+                const statusBadge = `<span style="padding: 0.2rem 0.6rem; border-radius: 99px; background: ${statusBg}; color: ${statusColor}; font-size: 0.75rem; font-weight: 600;">${currentStatus}</span>`;
+
+                const matchScoreHtml = `
+                    <span style="font-weight: 700; color: ${c.match_score >= 75 ? 'var(--accent-emerald)' : c.match_score >= 50 ? 'var(--accent-amber)' : 'var(--accent-rose)'};">
+                        ${c.match_score}%
+                    </span>
+                `;
+
+                const formScore = c.form_score;
+                const formScoreHtml = formScore !== null && formScore !== undefined ? `
+                    <span style="font-weight: 700; color: ${formScore >= 70 ? 'var(--accent-emerald)' : formScore >= 40 ? 'var(--accent-amber)' : 'var(--accent-rose)'};">
+                        ${formScore}%
+                    </span>
+                ` : `<span style="color: var(--text-secondary); opacity: 0.5;">-</span>`;
+
+                // Stringify for the onclick event cleanly
+                const candidateJson = JSON.stringify(c).replace(/'/g, "&apos;");
+
+                row.innerHTML = `
+                    <td style="padding: 1rem 1.5rem;">
+                        <input type="checkbox" class="candidate-select" data-id="${c.id}" style="cursor: pointer; width: 16px; height: 16px;">
+                    </td>
+                    <td style="padding: 1rem 1.5rem;">
+                        <div class="candidate-link" style="font-weight: 600; color: var(--text-primary);" onclick='viewResponse(${candidateJson})'>${c.full_name}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">${c.email}</div>
+                    </td>
+                    <td style="padding: 1rem 1.5rem; font-size: 0.85rem;">${relocate}</td>
+                    <td style="padding: 1rem 1.5rem; font-size: 0.85rem;">${notice}</td>
+                    <td style="padding: 1rem 1.5rem;">${matchScoreHtml}</td>
+                    <td style="padding: 1rem 1.5rem;">${formScoreHtml}</td>
+                    <td style="padding: 1rem 1.5rem;">${statusBadge}</td>
+                    <td style="padding: 1.2rem 1.5rem; text-align: center;">
+                        <div style="display: flex; gap: 0.75rem; justify-content: center;">
+                            <i class="fa-solid fa-circle-check action-icon check" title="Select" onclick="updateStatusViaRow(${c.id}, 'Selected')"></i>
+                            <i class="fa-solid fa-circle-xmark action-icon cancel" title="Not Selected" onclick="updateStatusViaRow(${c.id}, 'Not Selected')"></i>
+                            <i class="fa-solid fa-pencil action-icon pencil" title="Reset to Pending" onclick="updateStatusViaRow(${c.id}, 'Pending')"></i>
+                        </div>
+                    </td>
+                `;
+                body.appendChild(row);
+            });
+
+        } catch (err) {
+            console.error('Failed to load responses', err);
+            overlay.innerHTML = `<p style="color: #ef4444;">Error loading responses: ${err.message}</p>`;
+        }
+    }
+
+    function toggleAllCheckboxes(master) {
+        const checks = document.querySelectorAll('.candidate-check');
+        checks.forEach(c => c.checked = master.checked);
+        updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+        const selected = document.querySelectorAll('.candidate-check:checked');
+        const bar = document.getElementById('bulkActionBar');
+        const msg = document.getElementById('selectedCountMsg');
+
+        if (selected.length > 0) {
+            bar.classList.remove('d-none');
+            msg.innerText = `${selected.length} candidate${selected.length > 1 ? 's' : ''} selected`;
+        } else {
+            bar.classList.add('d-none');
+            document.getElementById('selectAllCheck').checked = false;
+        }
+    }
+
+    function clearSelection() {
+        document.getElementById('selectAllCheck').checked = false;
+        toggleAllCheckboxes({ checked: false });
+    }
+
+    async function triggerBulkUpdate(status) {
+        const selected = Array.from(document.querySelectorAll('.candidate-check:checked')).map(c => parseInt(c.value));
+        if (selected.length === 0) return;
+
+        if (!confirm(`Are you sure you want to mark ${selected.length} candidates as ${status}?`)) return;
+
+        try {
+            const resp = await fetch('/api/candidate/status/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidate_ids: selected,
+                    status: status
+                })
+            });
+
+            if (resp.ok) {
+                clearSelection();
+                loadResponses();
+            } else {
+                alert('Bulk update failed');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+
+    async function updateStatusViaRow(candidateId, status) {
+        currentCandidateId = candidateId;
+        await updateStatus(status);
+    }
+
+    function viewResponse(candidate) {
+        currentCandidateId = candidate.id;
+        document.getElementById('modalTitle').innerText = candidate.full_name;
+
+        const content = document.getElementById('modalContent');
+        content.innerHTML = '';
+
+        const data = candidate.form_responses;
+        Object.keys(data).forEach(key => {
+            if (key.startsWith('@') || key === 'id') return;
+
+            const box = document.createElement('div');
+            box.className = 'qa-box';
+            box.innerHTML = `
+                <div class="qa-label">${key}</div>
+                <div class="qa-value">${data[key] || '<span style="opacity:0.3 italic">Not answered</span>'}</div>
+            `;
+            content.appendChild(box);
+        });
+
+        document.getElementById('responseModal').style.display = 'flex';
+    }
+
+    async function updateStatus(status) {
+        if (!currentCandidateId) return;
+
+        const modal = document.getElementById('responseModal');
+        try {
+            const resp = await fetch('/api/candidate/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidate_id: currentCandidateId,
+                    status: status
+                })
+            });
+
+            if (resp.ok) {
+                modal.style.display = 'none';
+                loadResponses();
+            } else {
+                alert('Failed to update status');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        }
+    }
+
+    document.getElementById('closeModal').onclick = () => {
+        document.getElementById('responseModal').style.display = 'none';
+    };
+
+    window.onclick = (event) => {
+        const modal = document.getElementById('responseModal');
+        if (event.target == modal) {
+            modal.style.display = 'none';
+        }
+    };
+
+    async function triggerManualSync() {
+        const btn = document.getElementById('refreshSyncBtn');
+        const btnText = document.getElementById('syncBtnText');
+        const icon = btn.querySelector('i');
+
+        // Visual loading state
+        btn.disabled = true;
+        btnText.innerText = 'Syncing...';
+        icon.classList.add('fa-spin');
+
+        try {
+            const resp = await fetch('/api/sync-responses', { method: 'POST' });
+            const data = await resp.json();
+
+            if (data.success) {
+                console.log(`Synced ${data.updated_count} new responses.`);
+                // Refresh the table
+                await loadResponses();
+            } else {
+                alert('Sync failed: ' + (data.error || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error('Manual sync failed', err);
+            alert('Error during sync: ' + err.message);
+        } finally {
+            // Restore button state
+            btn.disabled = false;
+            btnText.innerText = 'Sync Responses';
+            icon.classList.remove('fa-spin');
+        }
+    }
+
+    async function recalcFormScores() {
+        const btn = document.getElementById('recalcScoreBtn');
+        const btnText = document.getElementById('recalcBtnText');
+
+        const roleSelect = document.getElementById('roleFilter');
+        const selectedOption = roleSelect.options[roleSelect.selectedIndex];
+        const jobId = selectedOption ? selectedOption.getAttribute('data-id') : null;
+
+        btn.disabled = true;
+        btnText.innerText = 'Calculating...';
+
+        try {
+            const resp = await fetch('/api/backfill-form-scores', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ job_id: jobId })
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                alert(data.message);
+                await loadResponses();
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btnText.innerText = 'Recalculate Scores';
+        }
+    }
+
+    document.getElementById('roleFilter').onchange = loadResponses;
+    document.addEventListener('DOMContentLoaded', loadResponses);
+
+    function toggleWeightPopover() {
+        const popover = document.getElementById('weightPopover');
+        popover.style.display = popover.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function resetWeightInputs() {
+        document.getElementById('w_location').value = 25;
+        document.getElementById('w_relocate').value = 20;
+        document.getElementById('w_notice').value = 25;
+        document.getElementById('w_salary').value = 15;
+        document.getElementById('w_immediate').value = 15;
+        updateWeightTotal();
+    }
+
+    function updateWeightTotal() {
+        const total =
+            parseInt(document.getElementById('w_location').value || 0) +
+            parseInt(document.getElementById('w_relocate').value || 0) +
+            parseInt(document.getElementById('w_notice').value || 0) +
+            parseInt(document.getElementById('w_salary').value || 0) +
+            parseInt(document.getElementById('w_immediate').value || 0);
+
+        document.getElementById('weightTotal').innerText = total;
+    }
+
+    async function saveWeights() {
+        const roleSelect = document.getElementById('roleFilter');
+        const selectedOption = roleSelect.options[roleSelect.selectedIndex];
+        const jobId = selectedOption.getAttribute('data-id');
+
+        if (!jobId) {
+            alert('Please select a role first.');
+            return;
+        }
+
+        const weights = {
+            "Location": parseInt(document.getElementById('w_location').value || 0),
+            "Willing to Relocate": parseInt(document.getElementById('w_relocate').value || 0),
+            "Notice Period": parseInt(document.getElementById('w_notice').value || 0),
+            "Expected Salary": parseInt(document.getElementById('w_salary').value || 0),
+            "Immediate Joiner": parseInt(document.getElementById('w_immediate').value || 0)
+        };
+
+        const saveBtn = document.querySelector('#weightPopover .btn-primary');
+        const originalText = saveBtn.innerText;
+        saveBtn.disabled = true;
+        saveBtn.innerText = 'Saving...';
+
+        try {
+            const saveResp = await fetch('/api/job/weights', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ job_id: jobId, weights: weights })
+            });
+            const saveResult = await saveResp.json();
+
+            if (saveResult.success) {
+                alert('Weights saved successfully! Now click the "Recalculate Scores" button at the top to update the dashboard.');
+                document.getElementById('weightPopover').style.display = 'none';
+            } else {
+                throw new Error(saveResult.error || 'Failed to save weights');
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerText = originalText;
+        }
+    }
+
+    // Close popover when clicking outside
+    document.addEventListener('click', function (event) {
+        const popover = document.getElementById('weightPopover');
+        const btn = document.getElementById('weightConfigBtn');
+        if (popover.style.display === 'block' &&
+            !popover.contains(event.target) &&
+            !btn.contains(event.target)) {
+            popover.style.display = 'none';
+        }
+    });
+</script>
+{% endblock %}

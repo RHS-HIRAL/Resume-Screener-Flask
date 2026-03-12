@@ -1,0 +1,34 @@
+# ── Core Flask stack ──────────────────────────────────────────────────────────
+flask>=3.0.0
+flask-login>=0.6.0
+flask-cors>=4.0.0
+
+# ── Database ──────────────────────────────────────────────────────────────────
+psycopg2-binary>=2.9.0       # PostgreSQL driver (binary wheel, no build deps needed)
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+
+# ── AI — Google Gemini ────────────────────────────────────────────────────────
+# IMPORTANT: The code uses `import google.genai as genai` (new unified SDK).
+# This is the `google-genai` package — NOT the old `google-generativeai` package.
+google-genai>=0.8.0
+
+# ── AI — Sarvam Speech-to-Text ────────────────────────────────────────────────
+sarvamai>=0.1.0
+
+# ── Data / File parsing ───────────────────────────────────────────────────────
+pandas>=2.2.0
+openpyxl>=3.1.0              # Excel read/write (.xlsx)
+PyPDF2>=3.0.0                # PDF text extraction
+python-docx>=1.1.0           # DOCX text extraction
+
+# ── Microsoft / SharePoint ────────────────────────────────────────────────────
+msal>=1.28.0                 # Azure AD / MSAL token acquisition
+requests>=2.31.0             # HTTP session for Graph API calls
+
+# ── Pydantic (schema validation) ──────────────────────────────────────────────
+pydantic[email]>=2.0.0       # [email] extra enables EmailStr validator
+
+# ── Security ──────────────────────────────────────────────────────────────────
+Werkzeug>=3.0.0              # Password hashing (generate_password_hash / check_password_hash)

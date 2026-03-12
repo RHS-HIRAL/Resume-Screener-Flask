@@ -1,0 +1,20 @@
+Question 1: What is the difference between a List and a Dictionary in Python?
+Expected Answer: A list is ordered items [1,2], a dictionary is key-value pairs {name: 'John'}.
+TA Should Look For: Knows basic data structures / Key-Value concept
+Red Flags: Confuses them / Says "I don't know"
+Question 2: In an API, what is the difference between GET and POST methods?
+Expected Answer: GET is used to fetch data (read), POST is used to send data (create).
+TA Should Look For: Understands fetching vs. sending
+Red Flags: Thinks they are the same / Confuses with "Download"
+Question 3: I have a Users table and an Orders table. How do I link them together in SQL?
+Expected Answer: You use a Foreign Key (like user_id) in the Orders table to point to the User.
+TA Should Look For: Mentions "Foreign Key" or "Joining tables"
+Red Flags: "Put all orders in the user's name field" / "No link needed"
+Question 4: If a user asks to generate a huge PDF report, how do you prevent the API from freezing while it loads?
+Expected Answer: I would use a background task (like Celery) so the user gets a response immediately saying 'Processing'.
+TA Should Look For: Mentions "Background task", "Async", or "Queue"
+Red Flags: "Just increase the timeout" / "Make the user wait"
+Question 5: You need to add a new column to a database table that already has data. How do you do it safely?
+Expected Answer: I would use a migration tool like Alembic to update the schema without deleting data.
+TA Should Look For: Mentions "Migrations" or "Alter Table"
+Red Flags: "Delete the table and recreate it" / "Manually edit the file"

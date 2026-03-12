@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+
+{% block title %}Call QA Evaluation | Resume Screener{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Call QA Evaluation</h1>
+    <p class="page-subtitle">Transcribe and evaluate candidate calls. Only candidates marked as "Selected" are shown.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 350px; gap: 2rem;">
+    <!-- Main Evaluation Workflow -->
+    <div class="card">
+        <h2 style="font-size: 1.25rem; margin-bottom: 2rem;">Evaluate Candidate</h2>
+
+        <!-- Filters & Selection -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 2rem;">
+            <div class="form-group">
+                <label class="form-label">Filter by Role</label>
+                <select id="role_filter" class="form-control" onchange="filterCandidates()">
+                    <option value="">All Roles</option>
+                    {% for role in roles %}
+                    <option value="{{ role }}">{{ role }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Select Candidate</label>
+                <select id="candidate_id" class="form-control" onchange="fetchHistory()">
+                    <option value="">-- Choose Candidate --</option>
+                    {% for c in candidates %}
+                    <option value="{{ c.candidate_id }}" data-role="{{ c.role_name }}">
+                        [{{ c.candidate_id }}] {{ c.full_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 2rem 0;">
+
+        <!-- Step 1: Upload & Transcribe -->
+        <div id="step_1_section">
+            <h3 style="font-size: 1rem; margin-bottom: 1rem;">
+                <span class="badge" style="background: var(--accent-indigo);">Step 1</span> Upload &amp; Transcribe
+            </h3>
+            <div style="display: flex; gap: 1rem; align-items: flex-end; background: #f8fafc; padding: 1.5rem; border-radius: 12px; border: 1px dashed var(--border-color);">
+                <div style="flex: 1;">
+                    <label class="form-label">Call Recording (.mp3, .wav)</label>
+                    <input type="file" id="audio_file" class="form-control" accept="audio/*">
+                </div>
+                <button id="transcribe_btn" class="btn btn-primary" onclick="transcribeAudio()">
+                    <i class="fa-solid fa-microphone-lines"></i> Transcribe
+                </button>
+            </div>
+            <div id="transcribe_status" style="margin-top: 1rem; display: none;">
+                <div class="progress-bar-container" style="height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+                    <div id="transcribe_progress" style="width: 0%; height: 100%; background: var(--accent-indigo); transition: width 0.3s ease;"></div>
+                </div>
+                <p id="transcribe_msg" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;"></p>
+            </div>
+        </div>
+
+        <!-- Step 2: Review & Score -->
+        <div id="step_2_section" style="display: none; margin-top: 3rem;">
+            <h3 style="font-size: 1rem; margin-bottom: 1rem;">
+                <span class="badge" style="background: var(--accent-indigo);">Step 2</span> Review Transcript &amp; Evaluate
+            </h3>
+            <div class="form-group">
+                <label class="form-label">Diarized Transcript (Edit if needed)</label>
+                <textarea id="transcript_text" class="form-control"
+                    style="height: 250px; font-family: 'Courier New', monospace; font-size: 0.9rem; line-height: 1.5;"
+                    placeholder="Transcript will appear here..."></textarea>
+            </div>
+            <div style="text-align: right; margin-top: 1rem;">
+                <button id="evaluate_btn" class="btn btn-primary" style="background: #10b981;" onclick="evaluateTranscript()">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Score
+                </button>
+            </div>
+        </div>
+
+        <!-- Result Section -->
+        <div id="result_section" style="display: none; margin-top: 3rem; border-top: 2px solid #10b981; padding-top: 2rem;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem;">
+                <div>
+                    <h3 style="font-size: 1.25rem;">Final Evaluation</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary);">AI assessment against reference answers.</p>
+                </div>
+                <div class="score-display">
+                    <div id="numeric_score" class="score-number" style="color: #10b981;">--</div>
+                    <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">QA Score (Out of 50)</div>
+                </div>
+            </div>
+            <div id="eval_text"
+                style="background: #f8fafc; padding: 2rem; border-radius: 12px; font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; border: 1px solid var(--border-color); color: #334155;">
+            </div>
+        </div>
+    </div>
+
+    <!-- History Panel -->
+    <div class="card">
+        <h3 style="font-size: 1rem; margin-bottom: 1.5rem;">Candidate History</h3>
+        <div id="history_list" style="display: flex; flex-direction: column; gap: 1rem;">
+            <p style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 3rem 0;">
+                Select a candidate to see their past scores.
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const candidatesData = {{ candidates | tojson }};
+    let currentHistory = [];
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /**
+     * Extract the numeric score from Gemini's markdown output.
+     * Handles all known variants produced by the prompt template:
+     *   "**Total Score:** 38/50"
+     *   "* **Total Score:** 38/50"
+     *   "**Total Score: 38**"
+     *   "Total Score: 38"
+     *   "Total Score — 38/50"
+     */
+    function extractScore(text) {
+        // Match "Total Score" followed by any mix of spaces, asterisks, colons, dashes, then digits
+        const m = text.match(/Total\s+Score[\s\*:\-–—]+(\d+)/i);
+        return m ? m[1] : null;
+    }
+
+    // ── Candidate filter ───────────────────────────────────────────────────────
+
+    function filterCandidates() {
+        const role = document.getElementById('role_filter').value;
+        const select = document.getElementById('candidate_id');
+
+        select.querySelectorAll('option').forEach(opt => {
+            if (!opt.value) return;
+            opt.style.display = (!role || opt.getAttribute('data-role') === role) ? '' : 'none';
+        });
+
+        select.value = '';
+        fetchHistory();
+    }
+
+    // ── History panel ──────────────────────────────────────────────────────────
+
+    async function fetchHistory() {
+        const cid = document.getElementById('candidate_id').value;
+        const list = document.getElementById('history_list');
+
+        document.getElementById('step_2_section').style.display = 'none';
+        document.getElementById('result_section').style.display = 'none';
+
+        if (!cid) {
+            list.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 3rem 0;">Select a candidate to see their past scores.</p>';
+            return;
+        }
+
+        list.innerHTML = '<div style="text-align:center; padding: 2rem;"><i class="fa-solid fa-spinner fa-spin text-indigo"></i></div>';
+
+        try {
+            const resp = await fetch(`/api/qa/results/${cid}`);
+            const data = await resp.json();
+
+            if (data.success && data.results.length > 0) {
+                currentHistory = data.results;
+                list.innerHTML = data.results.map((r, idx) => {
+                    const score = extractScore(r.score_text);
+                    return `
+                    <div class="card" style="padding: 1rem; font-size: 0.85rem; cursor: pointer; border-left: 4px solid #10b981;" onclick="showPastResultByIdx(${idx})">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                            <span style="font-weight: 700;">${new Date(r.created_at).toLocaleDateString()}</span>
+                            <span style="color: #10b981; font-weight: 800;">${score ? score + '/50' : 'View'}</span>
+                        </div>
+                        <div style="color: var(--text-secondary); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            ${r.audio_filename || 'Direct Transcript'}
+                        </div>
+                    </div>`;
+                }).join('');
+            } else {
+                list.innerHTML = '<p style="text-align:center; color: var(--text-secondary); font-size: 0.85rem;">No history found.</p>';
+            }
+        } catch (err) {
+            list.innerHTML = '<p style="color: var(--accent-rose);">Error loading history.</p>';
+        }
+    }
+
+    function showPastResultByIdx(idx) {
+        const r = currentHistory[idx];
+        if (!r) return;
+
+        const score = extractScore(r.score_text);
+        document.getElementById('result_section').style.display = 'block';
+        document.getElementById('eval_text').innerText = r.score_text;
+        document.getElementById('numeric_score').innerText = score ? score + ' / 50' : '??';
+        document.getElementById('result_section').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ── Stage 1: Transcribe ────────────────────────────────────────────────────
+
+    async function transcribeAudio() {
+        const cid = document.getElementById('candidate_id').value;
+        const audio = document.getElementById('audio_file').files[0];
+        const btn = document.getElementById('transcribe_btn');
+        const statusDiv = document.getElementById('transcribe_status');
+        const progress = document.getElementById('transcribe_progress');
+        const msg = document.getElementById('transcribe_msg');
+
+        if (!cid || !audio) {
+            alert('Please select a candidate and an audio file.');
+            return;
+        }
+
+        btn.disabled = true;
+        statusDiv.style.display = 'block';
+        progress.style.width = '20%';
+        msg.innerText = 'Uploading audio to Sarvam…';
+
+        const formData = new FormData();
+        formData.append('candidate_id', cid);
+        formData.append('audio_file', audio);
+
+        try {
+            // POST audio → get job_id back (202 Accepted)
+            const resp = await fetch('/api/qa/transcribe', { method: 'POST', body: formData });
+            const data = await resp.json();
+
+            if (!data.success || !data.job_id) {
+                throw new Error(data.error || 'Failed to start transcription job.');
+            }
+
+            const jobId = data.job_id;
+            progress.style.width = '40%';
+            msg.innerText = 'Transcription job started. Polling for results…';
+
+            // Poll /api/qa/status/<job_id> until Sarvam finishes
+            const MAX_POLLS = 72;       // 72 × 5 s = 6 minutes max
+            const POLL_INTERVAL = 5000; // ms
+
+            for (let i = 0; i < MAX_POLLS; i++) {
+                await new Promise(r => setTimeout(r, POLL_INTERVAL));
+
+                const elapsed = Math.round((i + 1) * POLL_INTERVAL / 1000);
+                const dots = '.'.repeat((i % 3) + 1);
+                msg.innerText = `Sarvam is transcribing${dots} (${elapsed}s elapsed)`;
+                progress.style.width = `${Math.min(40 + (i + 1) * 1.4, 92)}%`;
+
+                const pollResp = await fetch(`/api/qa/status/${jobId}`);
+                const pollData = await pollResp.json();
+
+                if (pollData.error) {
+                    throw new Error(pollData.error);
+                }
+
+                if (pollData.status === 'completed') {
+                    progress.style.width = '100%';
+                    msg.innerText = '✓ Transcription complete!';
+                    document.getElementById('transcript_text').value = pollData.transcript;
+                    document.getElementById('step_2_section').style.display = 'block';
+                    document.getElementById('step_2_section').scrollIntoView({ behavior: 'smooth' });
+                    return;
+                }
+                // status === 'processing' → keep polling
+            }
+
+            throw new Error('Transcription timed out after 6 minutes. Please try again.');
+
+        } catch (err) {
+            alert('Transcription error: ' + err.message);
+            statusDiv.style.display = 'none';
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // ── Stage 2: Evaluate ──────────────────────────────────────────────────────
+
+    async function evaluateTranscript() {
+        const cid = document.getElementById('candidate_id').value;
+        const transcript = document.getElementById('transcript_text').value.trim();
+        const btn = document.getElementById('evaluate_btn');
+
+        if (!transcript) {
+            alert('Transcript is empty.');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing with Gemini…';
+
+        try {
+            const resp = await fetch('/api/qa/evaluate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ candidate_id: cid, transcript })
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                document.getElementById('result_section').style.display = 'block';
+                document.getElementById('eval_text').innerText = data.score_text;
+                document.getElementById('numeric_score').innerText = data.numeric_score + ' / 50';
+                document.getElementById('result_section').scrollIntoView({ behavior: 'smooth' });
+                fetchHistory(); // Refresh history panel
+            } else {
+                alert('Evaluation failed: ' + (data.error || 'Unknown error'));
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Score';
+        }
+    }
+</script>
+
+<style>
+    .badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        border-radius: 4px;
+        color: white;
+        vertical-align: middle;
+        margin-right: 0.5rem;
+    }
+    .text-indigo { color: var(--accent-indigo); }
+</style>
+{% endblock %}

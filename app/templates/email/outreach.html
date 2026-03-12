@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:'Segoe UI',Arial,sans-serif;">
+    <div style="max-width:620px;margin:40px auto;background:#fff;
+                border-radius:12px;overflow:hidden;
+                box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+        <div style="background:linear-gradient(135deg,#6366f1,#4f46e5);padding:32px 40px;">
+            <div style="font-size:22px;font-weight:700;color:#fff;">
+                Exciting Opportunity For You 🎉
+            </div>
+            <div style="font-size:14px;color:rgba(255,255,255,0.8);margin-top:4px;">
+                {{ jd_title }}
+            </div>
+        </div>
+        <div style="padding:36px 40px;">
+            <p style="color:#111827;font-size:16px;margin-bottom:16px;">
+                Dear <strong>{{ candidate_name }}</strong>,
+            </p>
+            <p style="color:#374151;margin-bottom:16px;">
+                Thank you for your interest. After reviewing your profile, we're pleased to
+                share this opportunity and invite you to the next step in our hiring process.
+            </p>
+            
+            {% if custom_message %}
+            <p style="color:#374151;margin-bottom:16px;">{{ custom_message }}</p>
+            {% endif %}
+
+            <div style="background:#f9fafb;border-left:4px solid #6366f1;
+                        border-radius:0 8px 8px 0;padding:20px 24px;margin:24px 0;">
+                <div style="font-size:12px;font-weight:700;color:#6366f1;
+                            text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">
+                    Job Description
+                </div>
+                <div style="font-size:14px;color:#374151;line-height:1.7;">
+                    {{ jd_text|safe }}
+                </div>
+            </div>
+            
+            {% if form_link %}
+            <div style="margin:28px 0; text-align:center;">
+                <a href="{{ form_link }}"
+                   style="background:#6366f1;color:#fff;padding:14px 32px;
+                          border-radius:8px;text-decoration:none;font-weight:600;
+                          font-size:15px;display:inline-block;">
+                    &#128221; Submit Candidate Form
+                </a>
+            </div>
+            {% endif %}
+
+            <p style="color:#6b7280;font-size:13px;margin-top:24px;">
+                If you have any questions, please reply to this email directly.
+            </p>
+            <p style="color:#374151;font-size:14px;margin-top:16px;">
+                Best regards,<br>
+                <strong>HR Team</strong>
+            </p>
+        </div>
+        <div style="background:#f9fafb;padding:20px 40px;
+                    border-top:1px solid #e5e7eb;
+                    font-size:12px;color:#9ca3af;text-align:center;">
+            This email was sent as part of our candidate outreach process.
+        </div>
+    </div>
+</body>
+</html>

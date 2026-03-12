@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Resume Screener{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <button class="mobile-menu-toggle" id="mobileMenuBtn" aria-label="Toggle menu">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+
+        <div class="mobile-overlay" id="mobileOverlay"></div>
+
+        <button class="desktop-menu-toggle" id="desktopMenuBtn" aria-label="Expand menu">
+            <i class="fa-solid fa-bars"></i>
+        </button>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" aria-label="Collapse sidebar">
+                <i class="fa-solid fa-chevron-left"></i>
+            </button>
+
+            <div class="brand">
+                <i class="fa-solid fa-magnifying-glass-chart"></i>
+                <span>Screener AI</span>
+            </div>
+
+            <nav class="nav-links">
+                <li class="nav-item">
+                    <a href="{{ url_for('views.dashboard') }}"
+                        class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                        <i class="fa-solid fa-house"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('views.screener') }}"
+                        class="nav-link {% if request.endpoint == 'screener' %}active{% endif %}">
+                        <i class="fa-solid fa-file-invoice"></i>
+                        <span>Screen Resume</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('views.outreach') }}"
+                        class="nav-link {% if request.endpoint == 'outreach' %}active{% endif %}">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>Outreach</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('views.responses') }}"
+                        class="nav-link {% if request.endpoint == 'responses' %}active{% endif %}">
+                        <i class="fa-solid fa-clipboard-check"></i>
+                        <span>Review Responses</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('api_qa.qa_page') }}"
+                        class="nav-link {% if request.endpoint == 'qa_page' %}active{% endif %}">
+                        <i class="fa-solid fa-microphone-lines"></i>
+                        <span>Call Evaluation</span>
+                    </a>
+                </li>
+            </nav>
+
+            {% if current_user.is_authenticated %}
+            <div class="user-profile">
+                <div class="avatar">{{ current_user.username[0].upper() }}</div>
+                <div class="user-info">
+                    <div style="font-size: 0.9rem; font-weight: 600;">{{ current_user.username }}</div>
+                    <a href="{{ url_for('auth.logout') }}"
+                        style="font-size: 0.75rem; color: var(--accent-rose); text-decoration: none;">Log Out</a>
+                </div>
+            </div>
+            {% endif %}
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}"
+                style="padding: 1rem; border-radius: 10px; margin-bottom: 2rem; background: rgba(99, 102, 241, 0.1); border-left: 4px solid var(--accent-indigo);">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script>
+        // Mobile menu functionality
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+
+        function toggleMobileMenu() {
+            sidebar.classList.toggle('mobile-open');
+            mobileOverlay.classList.toggle('active');
+        }
+
+        function closeMobileMenu() {
+            sidebar.classList.remove('mobile-open');
+            mobileOverlay.classList.remove('active');
+        }
+
+        if (mobileMenuBtn) {
+            mobileMenuBtn.addEventListener('click', toggleMobileMenu);
+        }
+
+        if (mobileOverlay) {
+            mobileOverlay.addEventListener('click', closeMobileMenu);
+        }
+
+        // Close menu when clicking nav links on mobile
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    closeMobileMenu();
+                }
+            });
+        });
+
+        // Desktop collapse functionality
+        const sidebarCollapseBtn = document.getElementById('sidebarCollapseBtn');
+        const desktopMenuBtn = document.getElementById('desktopMenuBtn');
+
+        function toggleDesktopSidebar() {
+            document.body.classList.toggle('sidebar-collapsed');
+            // Save preference
+            const isCollapsed = document.body.classList.contains('sidebar-collapsed');
+            localStorage.setItem('sidebarCollapsed', isCollapsed);
+        }
+
+        if (sidebarCollapseBtn) {
+            sidebarCollapseBtn.addEventListener('click', toggleDesktopSidebar);
+        }
+
+        if (desktopMenuBtn) {
+            desktopMenuBtn.addEventListener('click', toggleDesktopSidebar);
+        }
+
+        // Apply saved preference on load
+        if (localStorage.getItem('sidebarCollapsed') === 'true') {
+            document.body.classList.add('sidebar-collapsed');
+        }
+
+        // Close menu on window resize to desktop size
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 768) {
+                closeMobileMenu();
+            }
+        });
+    </script>
+    
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>
