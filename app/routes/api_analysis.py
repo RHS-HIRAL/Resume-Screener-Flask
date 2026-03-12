@@ -193,7 +193,7 @@ def api_analyze_bulk():
             )
 
             # Filter out already analyzed resumes based on SP match_score
-            to_process = [r for r in resume_list if (r.get("match_score") or 0) <= 0]
+            to_process = [r for r in resume_list if (r.get("match_score") or 0) == 0]
             skipped_count = len(resume_list) - len(to_process)
             total = len(to_process)
 

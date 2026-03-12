@@ -337,9 +337,15 @@
             if (folder && spData.resumes[folder]) {
                 const allFiles = spData.resumes[folder];
                 const total = allFiles.length;
-                const newCount = allFiles.filter(r => (r.match_score || 0) <= 0).length;
-                const screened = total - newCount;
-                status.innerHTML = `📁 Total: ${total} | <span style="color: var(--accent-emerald); font-weight: 600;">New: ${newCount}</span> | <span style="color: var(--accent-rose); font-weight: 600;">Screened: ${screened}</span>`;
+                const newCount = allFiles.filter(r => (r.match_score || 0) === 0).length;
+                const corruptedCount = allFiles.filter(r => (r.match_score || 0) === -1).length;
+                const screened = total - newCount - corruptedCount;
+                
+                let statusHtml = `📁 Total: ${total} | <span style="color: var(--accent-emerald); font-weight: 600;">New: ${newCount}</span> | <span style="color: var(--accent-indigo); font-weight: 600;">Screened: ${screened}</span>`;
+                if (corruptedCount > 0) {
+                    statusHtml += ` | <span style="color: var(--accent-rose); font-weight: 600;">Corrupted: ${corruptedCount}</span>`;
+                }
+                status.innerHTML = statusHtml;
                 status.style.display = 'block';
                 // Refresh rescore table if in rescore mode
                 if (document.getElementById('rescore_toggle').checked) {
@@ -426,8 +432,8 @@
         const folderName = document.getElementById('sp_folder_select').value;
         const allInFolder = spData.resumes[folderName] || [];
 
-        // New resumes: those with no match score
-        const newResumes = allInFolder.filter(r => (r.match_score || 0) <= 0);
+        // New resumes: those with score exactly 0 (excluding corrupted -1)
+        const newResumes = allInFolder.filter(r => (r.match_score || 0) === 0);
 
         // Rescored resumes: selected via checkbox — force match_score to 0 so backend processes them
         const rescoreResumes = allInFolder
