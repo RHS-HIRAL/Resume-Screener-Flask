@@ -19,8 +19,20 @@ class Config:
     PG_PASSWORD = os.getenv("PG_PASSWORD", "")
 
     # API Keys
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", os.getenv("GOOGLE_API_KEY2", ""))
-    SARVAM_API_KEY = os.getenv("SARVAM_API_KEY", "")
+    GOOGLE_API_KEYS = [
+        key
+        for key in [
+            os.getenv(f"GOOGLE_API_KEY{i if i > 1 else ''}", "") for i in range(1, 11)
+        ]
+        if key
+    ]
+    SARVAM_API_KEYS = [
+        key
+        for key in [
+            os.getenv(f"SARVAM_API_KEY{i if i > 1 else ''}", "") for i in range(1, 3)
+        ]
+        if key
+    ]
 
     # SMTP / Email Outreach Configuration
     SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
