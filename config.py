@@ -49,6 +49,31 @@ class Config:
     SHAREPOINT_SITE_PATH = os.getenv("SHAREPOINT_SITE_PATH")
     SHAREPOINT_DRIVE_NAME = os.getenv("SHAREPOINT_DRIVE_NAME")
     SHAREPOINT_BASE_FOLDER = os.getenv("SHAREPOINT_BASE_FOLDER", "Resumes")
-    SHAREPOINT_JD_FOLDER = os.getenv("SHAREPOINT_JD_FOLDER", "Text Files/jobDescription")
-    SHAREPOINT_RESUME_TXT_FOLDER = os.getenv("SHAREPOINT_RESUME_TXT_FOLDER", "Text Files/Resumes")
-    MAILBOX_USER = os.getenv("MAILBOX_USER")
+    SHAREPOINT_JD_FOLDER = os.getenv("SHAREPOINT_JD_FOLDER", "JobDescriptions")
+    SHAREPOINT_TEXT_RESUMES_FOLDER = os.getenv(
+        "SHAREPOINT_TEXT_RESUMES_FOLDER", "Text Files/Resumes"
+    )
+    SHAREPOINT_TEXT_JD_FOLDER = os.getenv(
+        "SHAREPOINT_TEXT_JD_FOLDER", "Text Files/JobDescriptions"
+    )
+    MAILBOX_USER = os.getenv("MAILBOX_USER", "")
+
+    # Sync Pipeline Configuration
+    MAILBOX_LOOKBACK_HOURS = int(os.getenv("MAILBOX_LOOKBACK_HOURS", "1000"))
+    RESUME_SUBJECT_KEYWORDS = [
+        kw.strip()
+        for kw in os.getenv(
+            "RESUME_SUBJECT_KEYWORDS", "new application received"
+        ).split(",")
+        if kw.strip()
+    ]
+    SYNC_TEMP_RESUMES_DIR = os.getenv("SYNC_TEMP_RESUMES_DIR", "./tmp_resumes")
+    SYNC_TEMP_JD_DIR = os.getenv("SYNC_TEMP_JD_DIR", "./tmp_job_descriptions")
+    SYNC_LAST_SYNC_FILE = os.getenv("SYNC_LAST_SYNC_FILE", "data/last_sync.json")
+    CAREERS_URL = os.getenv("CAREERS_URL", "https://si2tech.com/jobs/")
+    SITE_BASE_URL = os.getenv("SITE_BASE_URL", "https://si2tech.com")
+    TEAMS_WEBHOOK_URL = os.getenv("TEAMS_WEBHOOK_URL", "")
+    TESSERACT_CMD = os.getenv(
+        "TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+    )
+    OCR_DPI = int(os.getenv("OCR_DPI", "300"))
