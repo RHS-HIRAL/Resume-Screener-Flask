@@ -91,9 +91,26 @@
                     <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">QA Score (Out of 50)</div>
                 </div>
             </div>
-            <div id="eval_text"
-                style="background: #f8fafc; padding: 2rem; border-radius: 12px; font-size: 0.95rem; line-height: 1.6; white-space: pre-wrap; border: 1px solid var(--border-color); color: #334155;">
+
+            <!-- Score Summary Bar -->
+            <div id="score_summary_bar" style="margin-bottom: 1.5rem; padding: 1rem 1.2rem; border-radius: 12px; background: linear-gradient(135deg, rgba(16,185,129,0.08), rgba(99,102,241,0.08)); border: 1px solid rgba(16,185,129,0.2); display: none;">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.8rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fa-solid fa-chart-simple" style="color: #10b981;"></i>
+                        <span style="font-weight: 700; font-size: 0.9rem;">Score Breakdown</span>
+                    </div>
+                    <div id="score_bar_visual" style="flex: 1; min-width: 200px; height: 10px; background: rgba(0,0,0,0.06); border-radius: 5px; overflow: hidden; margin: 0 1rem;">
+                        <div id="score_bar_fill" style="height: 100%; border-radius: 5px; transition: width 0.6s ease;"></div>
+                    </div>
+                    <span id="score_bar_label" style="font-weight: 800; font-size: 0.85rem; white-space: nowrap;"></span>
+                </div>
             </div>
+
+            <!-- Parsed Questions Container -->
+            <div id="eval_questions" style="display: flex; flex-direction: column; gap: 1rem;"></div>
+
+            <!-- Overall Evaluation Summary -->
+            <div id="eval_overall" style="display: none; margin-top: 1.5rem; padding: 1.2rem; border-radius: 12px; background: rgba(99,102,241,0.05); border: 1px solid rgba(99,102,241,0.2);"></div>
         </div>
     </div>
 
@@ -114,19 +131,117 @@
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
-    /**
-     * Extract the numeric score from Gemini's markdown output.
-     * Handles all known variants produced by the prompt template:
-     *   "**Total Score:** 38/50"
-     *   "* **Total Score:** 38/50"
-     *   "**Total Score: 38**"
-     *   "Total Score: 38"
-     *   "Total Score — 38/50"
-     */
     function extractScore(text) {
-        // Match "Total Score" followed by any mix of spaces, asterisks, colons, dashes, then digits
         const m = text.match(/Total\s+Score[\s\*:\-–—]+(\d+)/i);
         return m ? m[1] : null;
+    }
+
+    /**
+     * Parse the markdown evaluation text into structured question cards.
+     */
+    function renderEvaluation(rawText) {
+        const container = document.getElementById('eval_questions');
+        const overallDiv = document.getElementById('eval_overall');
+        const summaryBar = document.getElementById('score_summary_bar');
+        container.innerHTML = '';
+        overallDiv.style.display = 'none';
+        summaryBar.style.display = 'none';
+
+        if (!rawText || !rawText.trim()) {
+            container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No evaluation data.</p>';
+            return;
+        }
+
+        // Split by question markers
+        const questionBlocks = rawText.split(/(?=\*?\*?Question\s+\d+)/i).filter(b => b.trim());
+        let totalScore = 0;
+        let questionCount = 0;
+        const cards = [];
+
+        for (const block of questionBlocks) {
+            // Try to extract question number and text
+            const qMatch = block.match(/\*?\*?Question\s+(\d+):\s*(.*?)(\*\*)?$/m);
+            if (!qMatch) {
+                // This might be the overall evaluation section
+                if (/overall\s+evaluation/i.test(block) || /total\s+score/i.test(block)) {
+                    const totalMatch = block.match(/Total\s+Score[\s\*:\-–—]+(\d+)/i);
+                    let overallHtml = '<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem;">';
+                    overallHtml += '<i class="fa-solid fa-clipboard-check" style="color: var(--accent-indigo);"></i>';
+                    overallHtml += '<span style="font-weight: 800; font-size: 1rem;">Overall Evaluation</span>';
+                    overallHtml += '</div>';
+                    if (totalMatch) {
+                        overallHtml += `<div style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5;">Total Score: <span style="font-weight: 800; color: var(--accent-indigo); font-size: 1.1rem;">${totalMatch[1]}/50</span></div>`;
+                    }
+                    overallDiv.innerHTML = overallHtml;
+                    overallDiv.style.display = 'block';
+                }
+                continue;
+            }
+
+            const qNum = qMatch[1];
+            const qText = qMatch[2].replace(/\*+/g, '').trim();
+
+            // Extract candidate answer
+            const ansMatch = block.match(/Candidate'?s?\s+Initial\s+Answer[\s\*:]+\s*(.*?)(?=\n\s*\*?\s*\*?\*?Score|\n\s*$)/si);
+            const answer = ansMatch ? ansMatch[1].replace(/\*+/g, '').trim() : '';
+
+            // Extract score
+            const scoreMatch = block.match(/Score[\s\*:]+\s*(\d+)\s*\/?\s*(\d+)?/i);
+            const qScore = scoreMatch ? parseInt(scoreMatch[1]) : null;
+            const qMax = scoreMatch && scoreMatch[2] ? parseInt(scoreMatch[2]) : 10;
+
+            if (qScore !== null) {
+                totalScore += qScore;
+                questionCount++;
+            }
+
+            cards.push({ qNum, qText, answer, qScore, qMax });
+        }
+
+        // Render question cards
+        for (const card of cards) {
+            const scoreColor = card.qScore === null ? '#6b7280'
+                : card.qScore >= card.qMax * 0.8 ? '#10b981'
+                : card.qScore >= card.qMax * 0.5 ? '#f59e0b'
+                : '#ef4444';
+
+            const scorePercent = card.qScore !== null ? Math.round((card.qScore / card.qMax) * 100) : 0;
+
+            const cardEl = document.createElement('div');
+            cardEl.className = 'eval-question-card';
+            cardEl.innerHTML = `
+                <div class="eval-q-header">
+                    <div class="eval-q-number">Q${card.qNum}</div>
+                    <div class="eval-q-text">${card.qText}</div>
+                    <div class="eval-q-score" style="background: ${scoreColor};">
+                        ${card.qScore !== null ? card.qScore + '/' + card.qMax : '?'}
+                    </div>
+                </div>
+                ${card.answer ? `
+                <div class="eval-q-body">
+                    <div class="eval-q-label"><i class="fa-solid fa-user"></i> Candidate's Answer</div>
+                    <div class="eval-q-answer">${card.answer}</div>
+                </div>` : ''}
+                <div class="eval-q-bar-wrap">
+                    <div class="eval-q-bar" style="width: ${scorePercent}%; background: ${scoreColor};"></div>
+                </div>
+            `;
+            container.appendChild(cardEl);
+        }
+
+        // Render summary bar
+        if (questionCount > 0) {
+            const maxPossible = questionCount * 10; // assuming 10 per question
+            const totalMax = 50; // or use maxPossible for dynamic
+            const percent = Math.round((totalScore / totalMax) * 100);
+            const barColor = percent >= 80 ? '#10b981' : percent >= 50 ? '#f59e0b' : '#ef4444';
+
+            document.getElementById('score_bar_fill').style.width = percent + '%';
+            document.getElementById('score_bar_fill').style.background = barColor;
+            document.getElementById('score_bar_label').innerText = totalScore + ' / ' + totalMax;
+            document.getElementById('score_bar_label').style.color = barColor;
+            summaryBar.style.display = 'block';
+        }
     }
 
     // ── Candidate filter ───────────────────────────────────────────────────────
@@ -193,8 +308,8 @@
 
         const score = extractScore(r.score_text);
         document.getElementById('result_section').style.display = 'block';
-        document.getElementById('eval_text').innerText = r.score_text;
         document.getElementById('numeric_score').innerText = score ? score + ' / 50' : '??';
+        renderEvaluation(r.score_text);
         document.getElementById('result_section').scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -223,7 +338,6 @@
         formData.append('audio_file', audio);
 
         try {
-            // POST audio → get job_id back (202 Accepted)
             const resp = await fetch('/api/qa/transcribe', { method: 'POST', body: formData });
             const data = await resp.json();
 
@@ -235,9 +349,8 @@
             progress.style.width = '40%';
             msg.innerText = 'Transcription job started. Polling for results…';
 
-            // Poll /api/qa/status/<job_id> until Sarvam finishes
-            const MAX_POLLS = 72;       // 72 × 5 s = 6 minutes max
-            const POLL_INTERVAL = 5000; // ms
+            const MAX_POLLS = 72;
+            const POLL_INTERVAL = 5000;
 
             for (let i = 0; i < MAX_POLLS; i++) {
                 await new Promise(r => setTimeout(r, POLL_INTERVAL));
@@ -262,7 +375,6 @@
                     document.getElementById('step_2_section').scrollIntoView({ behavior: 'smooth' });
                     return;
                 }
-                // status === 'processing' → keep polling
             }
 
             throw new Error('Transcription timed out after 6 minutes. Please try again.');
@@ -300,10 +412,10 @@
 
             if (data.success) {
                 document.getElementById('result_section').style.display = 'block';
-                document.getElementById('eval_text').innerText = data.score_text;
                 document.getElementById('numeric_score').innerText = data.numeric_score + ' / 50';
+                renderEvaluation(data.score_text);
                 document.getElementById('result_section').scrollIntoView({ behavior: 'smooth' });
-                fetchHistory(); // Refresh history panel
+                fetchHistory();
             } else {
                 alert('Evaluation failed: ' + (data.error || 'Unknown error'));
             }
@@ -328,5 +440,84 @@
         margin-right: 0.5rem;
     }
     .text-indigo { color: var(--accent-indigo); }
+
+    /* Evaluation Question Cards */
+    .eval-question-card {
+        background: #f8fafc;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+        transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    .eval-question-card:hover {
+        box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+        transform: translateY(-1px);
+    }
+    .eval-q-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.8rem;
+        padding: 1rem 1.2rem;
+        background: rgba(255,255,255,0.6);
+    }
+    .eval-q-number {
+        flex-shrink: 0;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: var(--accent-indigo);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 0.78rem;
+    }
+    .eval-q-text {
+        flex: 1;
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #1e293b;
+        line-height: 1.4;
+        padding-top: 0.3rem;
+    }
+    .eval-q-score {
+        flex-shrink: 0;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        color: white;
+        font-weight: 800;
+        font-size: 0.82rem;
+        white-space: nowrap;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    }
+    .eval-q-body {
+        padding: 0.8rem 1.2rem 1rem;
+    }
+    .eval-q-label {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        margin-bottom: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .eval-q-answer {
+        font-size: 0.85rem;
+        color: #475569;
+        line-height: 1.55;
+    }
+    .eval-q-bar-wrap {
+        height: 4px;
+        background: rgba(0,0,0,0.04);
+    }
+    .eval-q-bar {
+        height: 100%;
+        border-radius: 0 0 4px 4px;
+        transition: width 0.5s ease;
+    }
 </style>
 {% endblock %}

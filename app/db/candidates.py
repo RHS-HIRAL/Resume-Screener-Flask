@@ -282,3 +282,13 @@ def update_candidate_qa_score(candidate_id: str, qa_score: int) -> bool:
             (qa_score, candidate_id),
         )
         return cur.rowcount > 0
+
+
+def update_candidate_match_score(candidate_db_id: int, match_score: int) -> bool:
+    """Update the match_score for a candidate by its database primary key (id)."""
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            "UPDATE candidates SET match_score = %s WHERE id = %s",
+            (match_score, candidate_db_id),
+        )
+        return cur.rowcount > 0
