@@ -26,6 +26,7 @@ python-docx>=1.1.0           # DOCX text extraction
 # ── Microsoft / SharePoint ────────────────────────────────────────────────────
 msal>=1.28.0                 # Azure AD / MSAL token acquisition
 requests>=2.31.0             # HTTP session for Graph API calls
+bs4
 
 # ── Pydantic (schema validation) ──────────────────────────────────────────────
 pydantic[email]>=2.0.0       # [email] extra enables EmailStr validator

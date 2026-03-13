@@ -1,12 +1,53 @@
 # app/routes/api_sharepoint.py — API endpoints for fetching SharePoint files and matching folders.
 
+import threading
 from flask import Blueprint, request, jsonify
 from flask_login import login_required
 
 from app.services.sharepoint import SharePointMatchScoreUpdater
+from app.services.sharepoint_sync import run_sync, get_last_sync_time
 from app.utils.helpers import normalize_slug
 
 api_sharepoint_bp = Blueprint("api_sharepoint", __name__)
+
+# Track if a sync is currently in progress
+_sync_running = False
+_sync_lock = threading.Lock()
+
+
+@api_sharepoint_bp.route("/api/sp/sync", methods=["POST"])
+@login_required
+def api_sp_sync():
+    """Trigger the full Outlook→SharePoint sync + JD scrape pipeline."""
+    global _sync_running
+    with _sync_lock:
+        if _sync_running:
+            return jsonify({"success": False, "error": "Sync already in progress"}), 409
+        _sync_running = True
+
+    def _run():
+        global _sync_running
+        try:
+            run_sync()
+        except Exception:
+            pass
+        finally:
+            with _sync_lock:
+                _sync_running = False
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    return jsonify({"success": True, "message": "Sync started in background"})
+
+
+@api_sharepoint_bp.route("/api/sp/last-sync", methods=["GET"])
+@login_required
+def api_sp_last_sync():
+    """Return the timestamp of the last successful sync."""
+    ts = get_last_sync_time()
+    return jsonify({"last_sync": ts})
+
+
 
 
 @api_sharepoint_bp.route("/api/sp/files")

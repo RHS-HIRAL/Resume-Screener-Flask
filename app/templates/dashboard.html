@@ -109,11 +109,70 @@
     </div>
 </div>
 
+<div class="card" style="margin-top: 1.5rem; padding: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+    <div>
+        <h2 style="font-size: 1.1rem; margin-bottom: 0.25rem;">SharePoint Sync</h2>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
+            Sync resumes from Outlook, extract text, and upload new job descriptions.
+            <br>Last sync: <span id="last-sync-time" style="color: var(--text-primary); font-weight: 600;">Loading…</span>
+        </p>
+    </div>
+    <button id="btn-sync-sp" class="btn btn-primary" onclick="triggerSync()" style="white-space: nowrap;">
+        <i class="fa-solid fa-rotate"></i> Sync Data in SharePoint
+    </button>
+</div>
+
+<script>
+    (async function loadLastSync() {
+        try {
+            const resp = await fetch('/api/sp/last-sync');
+            const data = await resp.json();
+            const el = document.getElementById('last-sync-time');
+            if (data.last_sync) {
+                const d = new Date(data.last_sync);
+                el.textContent = d.toLocaleString();
+            } else {
+                el.textContent = 'Never';
+            }
+        } catch (e) {
+            document.getElementById('last-sync-time').textContent = 'Unknown';
+        }
+    })();
+
+    async function triggerSync() {
+        const btn = document.getElementById('btn-sync-sp');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Syncing…';
+        try {
+            const resp = await fetch('/api/sp/sync', { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> Sync Started';
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Sync Data in SharePoint';
+                }, 5000);
+            } else {
+                alert('Sync error: ' + (data.error || 'Unknown error'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Sync Data in SharePoint';
+            }
+        } catch (err) {
+            alert('Failed to start sync: ' + err.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-rotate"></i> Sync Data in SharePoint';
+        }
+    }
+</script>
+
+
+
 <div class="card" style="padding: 0; overflow: hidden;">
     <div
         style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
         <h2 style="font-size: 1.25rem;">Recent Candidates</h2>
         <a href="{{ url_for('views.outreach') }}"
+
             style="color: var(--accent-indigo); text-decoration: none; font-size: 0.9rem; font-weight: 600;">View
             All</a>
     </div>
