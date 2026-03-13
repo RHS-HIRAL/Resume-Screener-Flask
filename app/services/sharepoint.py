@@ -331,6 +331,43 @@ class SharePointMatchScoreUpdater:
             )
         return resp.json()["id"]
 
+    def delete_file(self, filename: str, role_hint: str = "") -> tuple[str, str]:
+        """
+        Permanently delete a file from SharePoint by filename.
+        Uses find_matching_items to locate the item, then calls
+        DELETE /drives/{drive_id}/items/{item_id}.
+
+        Returns: ("OK"|"NOT_FOUND"|"ERROR", message)
+        """
+        drive_id = self._get_drive_id()
+
+        candidates = self.find_matching_items(filename, role_hint=role_hint)
+        if not candidates:
+            return ("NOT_FOUND", f"File '{filename}' not found in SharePoint.")
+
+        # If multiple matches, attempt to delete all (resume may exist in
+        # multiple folders — e.g. originals + text versions)
+        errors = []
+        deleted = 0
+        for item in candidates:
+            item_id = item["id"]
+            url = f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item_id}"
+            resp = self.session.delete(url, headers=self._get_headers(), timeout=30)
+            if resp.status_code in (204, 200):
+                deleted += 1
+                print(f"[SP DELETE] Deleted '{item['name']}' (id={item_id})")
+            else:
+                errors.append(f"item {item_id}: {resp.status_code}")
+
+        if deleted == 0:
+            return ("ERROR", f"SharePoint deletion failed: {'; '.join(errors)}")
+        if errors:
+            return (
+                "PARTIAL",
+                f"Deleted {deleted} copy/copies; errors on: {'; '.join(errors)}",
+            )
+        return ("OK", f"Deleted '{filename}' from SharePoint ({deleted} copy/copies).")
+
     # ── Excel / Forms Syncing ────────────────────────────────────────────────
 
     def get_excel_rows(self, filename: str) -> list[dict]:

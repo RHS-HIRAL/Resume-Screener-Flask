@@ -138,8 +138,13 @@
         <h1 class="page-title">Candidate Outreach</h1>
         <p class="page-subtitle">Engage shortlisted talent and distribute screening forms to accelerate your hiring pipeline.</p>
     </div>
-    <div style="display: flex; gap: 1rem;">
-        <button id="bulkOutreachBtn" class="btn btn-primary" disabled>
+    <div style="display: flex; gap: 1rem; align-items: center;">
+        <button id="bulkDeleteBtn" class="btn" disabled
+            style="background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.3); display: none; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-trash-can"></i>
+            Delete Selected (<span id="deleteCount">0</span>)
+        </button>
+        <button id="bulkOutreachBtn" class="btn btn-primary" disabled style="display: none;">
             <i class="fa-solid fa-envelope-bulk"></i> Send Bulk Outreach (<span id="selectedCount">0</span>)
         </button>
     </div>
@@ -205,6 +210,96 @@
         <div style="display: flex; gap: 1rem; margin-top: 2rem;">
             <button id="cancelOutreach" class="btn" style="flex: 1; background: rgba(255,255,255,0.05);">Cancel</button>
             <button id="confirmOutreach" class="btn btn-primary" style="flex: 2;">Confirm & Send Emails</button>
+        </div>
+    </div>
+</div>
+
+<!-- ─── Secure Delete Modal ──────────────────────────────────────────────── -->
+<div id="deleteModal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+           background: rgba(0,0,0,0.85); z-index: 2000; align-items: center;
+           justify-content: center; backdrop-filter: blur(8px);">
+    <div class="card glass-panel"
+        style="width: 480px; padding: 0; border: 1px solid rgba(239,68,68,0.35); overflow: hidden;">
+ 
+        <!-- Header -->
+        <div style="background: rgba(239,68,68,0.1); padding: 1.5rem 2rem;
+                    border-bottom: 1px solid rgba(239,68,68,0.2); display: flex;
+                    align-items: center; gap: 1rem;">
+            <div style="width: 40px; height: 40px; border-radius: 10px;
+                        background: rgba(239,68,68,0.2); display: flex;
+                        align-items: center; justify-content: center; flex-shrink: 0;">
+                <i class="fa-solid fa-triangle-exclamation" style="color: #f87171; font-size: 1.1rem;"></i>
+            </div>
+            <div>
+                <h2 style="margin: 0; font-size: 1.1rem; color: #f87171;">Permanent Deletion</h2>
+                <p style="margin: 0; font-size: 0.8rem; color: var(--text-secondary);">This action cannot be undone.</p>
+            </div>
+        </div>
+ 
+        <!-- Body -->
+        <div style="padding: 1.75rem 2rem;">
+            <!-- Candidate summary -->
+            <div id="deleteModalSummary"
+                style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color);
+                       border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1.5rem;
+                       font-size: 0.85rem; color: var(--text-secondary); line-height: 1.7;">
+                <!-- Populated by JS -->
+            </div>
+ 
+            <!-- SharePoint toggle -->
+            <div style="display: flex; align-items: center; justify-content: space-between;
+                        background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.2);
+                        border-radius: 10px; padding: 0.85rem 1.25rem; margin-bottom: 1.5rem;">
+                <div>
+                    <div style="font-weight: 600; font-size: 0.9rem;">Also delete from SharePoint</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                        Permanently removes resume files from the SharePoint document library.
+                    </div>
+                </div>
+                <label style="position: relative; display: inline-flex; align-items: center; cursor: pointer; flex-shrink: 0; margin-left: 1rem;">
+                    <input type="checkbox" id="deleteSpToggle" style="opacity: 0; width: 0; height: 0; position: absolute;">
+                    <span id="deleteSpTrack"
+                        style="width: 42px; height: 24px; background: rgba(255,255,255,0.1);
+                               border-radius: 99px; border: 1px solid var(--border-color);
+                               display: inline-block; transition: background 0.2s; position: relative;">
+                        <span id="deleteSpThumb"
+                            style="position: absolute; top: 3px; left: 3px; width: 16px; height: 16px;
+                                   border-radius: 50%; background: #9ca3af; transition: all 0.2s;"></span>
+                    </span>
+                </label>
+            </div>
+ 
+            <!-- Password field -->
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fa-solid fa-lock" style="color: #f87171; font-size: 0.8rem;"></i>
+                    Confirm your password to authorise deletion
+                </label>
+                <input type="password" id="deletePassword" class="form-control"
+                    placeholder="Enter your login password"
+                    style="border-color: rgba(239,68,68,0.3);"
+                    autocomplete="current-password">
+                <p id="deletePasswordError"
+                    style="display: none; color: #f87171; font-size: 0.8rem; margin-top: 0.5rem;">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                    <span id="deletePasswordErrorMsg">Incorrect password.</span>
+                </p>
+            </div>
+        </div>
+ 
+        <!-- Footer -->
+        <div style="padding: 1.25rem 2rem; border-top: 1px solid var(--border-color);
+                    display: flex; gap: 0.75rem; background: rgba(0,0,0,0.2);">
+            <button id="cancelDelete" class="btn"
+                style="flex: 1; background: rgba(255,255,255,0.05);">
+                Cancel
+            </button>
+            <button id="confirmDelete" class="btn"
+                style="flex: 2; background: rgba(239,68,68,0.2); color: #f87171;
+                       border: 1px solid rgba(239,68,68,0.4); font-weight: 700;">
+                <i class="fa-solid fa-trash-can"></i> Delete Permanently
+            </button>
         </div>
     </div>
 </div>
@@ -302,7 +397,28 @@
         const updateSelection = () => {
             const selected = document.querySelectorAll('.candidate-check:checked');
             countSpan.innerText = selected.length;
-            bulkBtn.disabled = selected.length === 0;
+            
+            if (selected.length === 0) {
+                bulkBtn.style.display = 'none';
+                bulkBtn.disabled = true;
+            } else {
+                bulkBtn.style.display = 'inline-block';
+                bulkBtn.disabled = false;
+            }
+ 
+            // ── Delete button state ──
+            const deleteBtn = document.getElementById('bulkDeleteBtn');
+            const deleteCountEl = document.getElementById('deleteCount');
+            if (deleteBtn && deleteCountEl) {
+                deleteCountEl.innerText = selected.length;
+                if (selected.length === 0) {
+                    deleteBtn.style.display = 'none';
+                    deleteBtn.disabled = true;
+                } else {
+                    deleteBtn.style.display = 'flex';
+                    deleteBtn.disabled = false;
+                }
+            }
         };
 
         checks.forEach(c => c.onclick = updateSelection);
@@ -322,6 +438,156 @@
         });
     }
 
+    // ─── SharePoint toggle animation ──────────────────────────────────────────
+    document.getElementById('deleteSpToggle').addEventListener('change', function () {
+        const track = document.getElementById('deleteSpTrack');
+        const thumb = document.getElementById('deleteSpThumb');
+        if (this.checked) {
+            track.style.background = 'rgba(239,68,68,0.5)';
+            track.style.borderColor = 'rgba(239,68,68,0.6)';
+            thumb.style.left = '21px';
+            thumb.style.background = '#f87171';
+        } else {
+            track.style.background = 'rgba(255,255,255,0.1)';
+            track.style.borderColor = 'var(--border-color)';
+            thumb.style.left = '3px';
+            thumb.style.background = '#9ca3af';
+        }
+    });
+    
+    // ─── Open delete modal ─────────────────────────────────────────────────────
+    function openDeleteModal() {
+        const selected = Array.from(document.querySelectorAll('.candidate-check:checked'));
+        if (selected.length === 0) return;
+    
+        // Gather names for the summary panel
+        const names = selected.map(cb => {
+            const row = cb.closest('tr');
+            const nameTd = row ? row.querySelectorAll('td')[2] : null;
+            return nameTd ? nameTd.querySelector('div')?.innerText || 'Unknown' : 'Unknown';
+        });
+    
+        const summaryEl = document.getElementById('deleteModalSummary');
+        summaryEl.innerHTML = `
+            <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">
+                <i class="fa-solid fa-users" style="color: #f87171; margin-right: 0.4rem;"></i>
+                ${selected.length} candidate${selected.length > 1 ? 's' : ''} will be permanently deleted:
+            </div>
+            <ul style="margin: 0; padding-left: 1.2rem; color: var(--text-secondary);">
+                ${names.slice(0, 6).map(n => `<li>${n}</li>`).join('')}
+                ${names.length > 6 ? `<li style="opacity:0.6;">… and ${names.length - 6} more</li>` : ''}
+            </ul>
+        `;
+    
+        // Reset state
+        document.getElementById('deletePassword').value = '';
+        document.getElementById('deletePasswordError').style.display = 'none';
+        document.getElementById('deleteSpToggle').checked = false;
+        // Ensure toggle visual is reset
+        document.getElementById('deleteSpTrack').style.background = 'rgba(255,255,255,0.1)';
+        document.getElementById('deleteSpTrack').style.borderColor = 'var(--border-color)';
+        document.getElementById('deleteSpThumb').style.left = '3px';
+        document.getElementById('deleteSpThumb').style.background = '#9ca3af';
+    
+        document.getElementById('deleteModal').style.display = 'flex';
+    
+        // Auto-focus the password field after the modal renders
+        setTimeout(() => document.getElementById('deletePassword').focus(), 80);
+    }
+    
+    // ─── Close delete modal ────────────────────────────────────────────────────
+    document.getElementById('cancelDelete').onclick = () => {
+        document.getElementById('deleteModal').style.display = 'none';
+    };
+    // Close on backdrop click
+    document.getElementById('deleteModal').addEventListener('click', function (e) {
+        if (e.target === this) this.style.display = 'none';
+    });
+    // Allow Enter key in password field
+    document.getElementById('deletePassword').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') document.getElementById('confirmDelete').click();
+    });
+    
+    // ─── Execute deletion ──────────────────────────────────────────────────────
+    document.getElementById('confirmDelete').onclick = async () => {
+        const password = document.getElementById('deletePassword').value.trim();
+        const deleteFromSp = document.getElementById('deleteSpToggle').checked;
+        const errEl = document.getElementById('deletePasswordError');
+        const errMsg = document.getElementById('deletePasswordErrorMsg');
+        const btn = document.getElementById('confirmDelete');
+    
+        // Client-side guard
+        if (!password) {
+            errMsg.textContent = 'Please enter your password.';
+            errEl.style.display = 'block';
+            document.getElementById('deletePassword').focus();
+            return;
+        }
+    
+        errEl.style.display = 'none';
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Deleting…';
+    
+        const selectedIds = Array.from(document.querySelectorAll('.candidate-check:checked'))
+            .map(c => parseInt(c.dataset.id));
+    
+        try {
+            const resp = await fetch('/api/candidates/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidate_ids: selectedIds,
+                    password: password,
+                    delete_from_sharepoint: deleteFromSp,
+                }),
+            });
+    
+            const result = await resp.json();
+    
+            if (!resp.ok) {
+                // 403 = wrong password; other errors
+                errMsg.textContent = result.error || 'Deletion failed. Please try again.';
+                errEl.style.display = 'block';
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Delete Permanently';
+                if (resp.status === 403) document.getElementById('deletePassword').select();
+                return;
+            }
+    
+            // Success — close modal, refresh table
+            document.getElementById('deleteModal').style.display = 'none';
+            document.getElementById('selectAll').checked = false;
+    
+            // Show toast-style success message
+            showDeleteToast(result.message);
+            loadCandidates();
+    
+        } catch (err) {
+            errMsg.textContent = 'Network error: ' + err.message;
+            errEl.style.display = 'block';
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-trash-can"></i> Delete Permanently';
+        }
+    };
+    
+    // ─── Toast notification ────────────────────────────────────────────────────
+    function showDeleteToast(message) {
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+            background: rgba(16,185,129,0.15); border: 1px solid rgba(16,185,129,0.4);
+            color: var(--accent-emerald); padding: 0.8rem 1.5rem; border-radius: 10px;
+            font-size: 0.9rem; font-weight: 600; z-index: 9999;
+            backdrop-filter: blur(10px); box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            display: flex; align-items: center; gap: 0.6rem;
+            animation: fadeInUp 0.3s ease;
+        `;
+        toast.innerHTML = `<i class="fa-solid fa-circle-check"></i> ${message}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.style.opacity = '0', 3500);
+        setTimeout(() => toast.remove(), 4000);
+    }
+
     function showModal() {
         document.getElementById('outreachModal').style.display = 'flex';
     }
@@ -331,6 +597,7 @@
     };
 
     document.getElementById('bulkOutreachBtn').onclick = showModal;
+    document.getElementById('bulkDeleteBtn').onclick = openDeleteModal;
 
     document.getElementById('confirmOutreach').onclick = async () => {
         const selectedIds = Array.from(document.querySelectorAll('.candidate-check:checked')).map(c => parseInt(c.dataset.id));
