@@ -8,7 +8,7 @@ from flask import Blueprint, request, jsonify, Response, current_app
 from flask_login import login_required, current_user
 
 from app.db.jobs import upsert_job
-from app.db.candidates import save_candidate
+from app.db.candidates import save_candidate, update_candidate_match_score
 from app.services.ai_evaluator import evaluate_resume
 from app.services.sharepoint import SharePointMatchScoreUpdater
 from app.utils.helpers import extract_job_code
@@ -207,14 +207,22 @@ def api_analyze_bulk():
             for idx, resume_info in enumerate(to_process, 1):
                 resume_id = resume_info["id"]
                 resume_name = resume_info["name"]
+                is_rescore = resume_info.get("_is_rescore", False)
+                previous_score = resume_info.get("previous_score", None)
+                reviewer_feedback = resume_info.get("reviewer_feedback", None)
 
                 yield f"data: {json.dumps({'type': 'progress', 'current': idx, 'total': total, 'resume_name': resume_name})}\n\n"
 
                 try:
                     resume_text = sp.download_text_content(resume_id)
 
-                    # AI Analysis
-                    analysis_dict = evaluate_resume(resume_text, jd_text)
+                    # AI Analysis — pass human feedback for rescores
+                    analysis_dict = evaluate_resume(
+                        resume_text,
+                        jd_text,
+                        previous_score=previous_score if is_rescore else None,
+                        reviewer_feedback=reviewer_feedback if is_rescore else None,
+                    )
 
                     score = analysis_dict.get("function_1_resume_jd_matching", {}).get(
                         "overall_match_score", 0
@@ -231,8 +239,8 @@ def api_analyze_bulk():
                         resume_filename=resume_name,
                     )
 
-                    # Sync to SP (Background)
-                    if sync_sp:
+                    # Sync to SP (Background) — skip for rescores; user picks final score first
+                    if sync_sp and not is_rescore:
                         sp_metadata = {
                             "MatchScore": score,
                             "CandidateName": personal.get("full_name", "Unknown"),
@@ -248,45 +256,52 @@ def api_analyze_bulk():
                         ).start()
 
                     # Yield result to frontend
+                    candidate_payload = {
+                        "id": cid,
+                        "name": personal.get("full_name", "Unknown"),
+                        "email": personal.get("email", ""),
+                        "score": score,
+                        "resume_filename": resume_name,
+                        "resume_id": resume_id,
+                        "experience": extraction.get("career_metrics", {}).get(
+                            "total_experience_in_years", 0
+                        ),
+                        "current_title": extraction.get(
+                            "current_employment", {}
+                        ).get("current_job_title", ""),
+                        "match_details": {
+                            k: {
+                                "status": analysis_dict.get(
+                                    "function_1_resume_jd_matching", {}
+                                )
+                                .get(k, {})
+                                .get("status", ""),
+                                "summary": analysis_dict.get(
+                                    "function_1_resume_jd_matching", {}
+                                )
+                                .get(k, {})
+                                .get("summary", ""),
+                            }
+                            for k in [
+                                "experience",
+                                "education",
+                                "location",
+                                "project_history_relevance",
+                                "tools_used",
+                                "certifications",
+                            ]
+                        },
+                    }
+
+                    # Include previous_score for rescored candidates
+                    if is_rescore and previous_score is not None:
+                        candidate_payload["previous_score"] = previous_score
+
                     result_payload = {
                         "type": "result",
                         "current": idx,
                         "total": total,
-                        "candidate": {
-                            "id": cid,
-                            "name": personal.get("full_name", "Unknown"),
-                            "email": personal.get("email", ""),
-                            "score": score,
-                            "resume_filename": resume_name,
-                            "experience": extraction.get("career_metrics", {}).get(
-                                "total_experience_in_years", 0
-                            ),
-                            "current_title": extraction.get(
-                                "current_employment", {}
-                            ).get("current_job_title", ""),
-                            "match_details": {
-                                k: {
-                                    "status": analysis_dict.get(
-                                        "function_1_resume_jd_matching", {}
-                                    )
-                                    .get(k, {})
-                                    .get("status", ""),
-                                    "summary": analysis_dict.get(
-                                        "function_1_resume_jd_matching", {}
-                                    )
-                                    .get(k, {})
-                                    .get("summary", ""),
-                                }
-                                for k in [
-                                    "experience",
-                                    "education",
-                                    "location",
-                                    "project_history_relevance",
-                                    "tools_used",
-                                    "certifications",
-                                ]
-                            },
-                        },
+                        "candidate": candidate_payload,
                     }
                     yield f"data: {json.dumps(result_payload)}\n\n"
 
@@ -297,3 +312,53 @@ def api_analyze_bulk():
             yield f"data: {json.dumps({'type': 'done', 'message': f'Bulk analysis complete. Processed {total} resumes.'})}\n\n"
 
     return Response(generate(), mimetype="text/event-stream")
+
+
+@api_analysis_bp.route("/api/rescore/finalize", methods=["POST"])
+@login_required
+def api_rescore_finalize():
+    """
+    Finalize the score for a rescored candidate.
+    Accepts the user's chosen score, updates the DB, and pushes to SharePoint.
+    """
+    data = request.json or {}
+    candidate_db_id = data.get("candidate_id")
+    final_score = data.get("final_score")
+    resume_filename = data.get("resume_filename", "")
+    resume_id = data.get("resume_id", "")
+    candidate_name = data.get("candidate_name", "Unknown")
+    candidate_email = data.get("candidate_email", "")
+    candidate_phone = data.get("candidate_phone", "")
+    job_code = data.get("job_code", "")
+    jd_title = data.get("jd_title", "")
+
+    if candidate_db_id is None or final_score is None:
+        return jsonify({"error": "Missing candidate_id or final_score"}), 400
+
+    try:
+        # 1. Update DB with the user-selected score
+        updated = update_candidate_match_score(int(candidate_db_id), int(final_score))
+        if not updated:
+            return jsonify({"error": "Candidate not found in DB"}), 404
+
+        # 2. Push to SharePoint
+        app = current_app._get_current_object()
+        sp_metadata = {
+            "MatchScore": int(final_score),
+            "CandidateName": candidate_name,
+            "CandidateEmail": candidate_email,
+            "CandidatePhone": candidate_phone,
+            "JobID": str(job_code) if job_code else "Unknown",
+            "JobRole": jd_title,
+        }
+        threading.Thread(
+            target=_background_sp_push,
+            args=(app, resume_filename, sp_metadata, jd_title, resume_id),
+            daemon=True,
+        ).start()
+
+        return jsonify({"success": True, "final_score": int(final_score)}), 200
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500

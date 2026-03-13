@@ -2,7 +2,9 @@
 
 import threading
 from flask import Blueprint, request, jsonify
-from flask_login import login_required
+from flask_login import login_required, current_user
+from werkzeug.security import check_password_hash
+from app.db.users import get_user_by_id
 
 from config import Config
 from app.db.candidates import (
@@ -14,6 +16,7 @@ from app.db.candidates import (
     get_unsynced_candidates,
     update_candidate_form_response,
     update_candidate_form_score,
+    delete_candidates_by_ids,
 )
 from app.db.jobs import (
     get_all_jobs,
@@ -426,3 +429,91 @@ def api_debug_form_scores():
         return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+@api_candidates_bp.route("/api/candidates/delete", methods=["POST"])
+@login_required
+def api_delete_candidates():
+    """
+    Permanently delete one or more candidate records.
+
+    Expected JSON body:
+    {
+        "candidate_ids": [1, 2, 3],          // required — DB integer PKs
+        "password": "user-login-password",   // required — caller's own password
+        "delete_from_sharepoint": true        // optional — default false
+    }
+
+    Flow:
+      1. Re-verify the currently logged-in user's password against the DB hash.
+      2. Delete candidates from PostgreSQL (CASCADE removes qa_results too).
+      3. Optionally delete resume files from SharePoint (background thread).
+      4. Return a summary.
+    """
+
+    data = request.get_json(silent=True) or {}
+
+    candidate_ids = data.get("candidate_ids")
+    password = data.get("password", "")
+    delete_sp = bool(data.get("delete_from_sharepoint", False))
+
+    # ── 1. Input validation ──────────────────────────────────────────────────
+    if not candidate_ids or not isinstance(candidate_ids, list):
+        return jsonify({"error": "candidate_ids must be a non-empty list."}), 400
+    if not password:
+        return jsonify({"error": "Password is required to authorise deletion."}), 400
+
+    # ── 2. Password re-verification ──────────────────────────────────────────
+    user_record = get_user_by_id(current_user.id)
+    if not user_record or not check_password_hash(
+        user_record["password_hash"], password
+    ):
+        return jsonify({"error": "Incorrect password. Deletion not authorised."}), 403
+
+    # ── 3. Delete from database ──────────────────────────────────────────────
+    try:
+        deleted_count, deleted_rows = delete_candidates_by_ids(
+            [int(cid) for cid in candidate_ids]
+        )
+    except Exception as e:
+        return jsonify({"error": f"Database deletion failed: {str(e)}"}), 500
+
+    # ── 4. Optionally delete files from SharePoint (background) ─────────────
+    sp_summary = []
+    if delete_sp and deleted_rows:
+
+        def _background_sp_delete(rows: list):
+            try:
+                sp = SharePointMatchScoreUpdater()
+                for row in rows:
+                    fname = row.get("resume_filename")
+                    role = row.get("role_name", "")
+                    if not fname:
+                        continue
+                    status, msg = sp.delete_file(fname, role_hint=role)
+                    print(f"[SP DELETE] {fname} → {status}: {msg}")
+            except Exception as ex:
+                print(f"[SP DELETE ERROR] {ex}")
+
+        threading.Thread(
+            target=_background_sp_delete,
+            args=(deleted_rows,),
+            daemon=True,
+        ).start()
+        sp_summary = [
+            r.get("resume_filename") for r in deleted_rows if r.get("resume_filename")
+        ]
+
+    return jsonify(
+        {
+            "success": True,
+            "deleted_count": deleted_count,
+            "sharepoint_queued": sp_summary if delete_sp else [],
+            "message": (
+                f"{deleted_count} candidate(s) permanently deleted from the database"
+                + (
+                    f", SharePoint cleanup queued for {len(sp_summary)} file(s)."
+                    if delete_sp and sp_summary
+                    else "."
+                )
+            ),
+        }
+    )

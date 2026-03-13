@@ -73,39 +73,30 @@
             </label>
         </div>
 
-        <!-- Rescore Table (hidden by default) -->
+        <!-- Rescore Selection Table -->
         <div id="rescoreSection"
-            style="display: none; margin-top: 1.5rem; overflow: hidden; transition: all 0.3s ease;">
-            <div
-                style="padding: 1.2rem; background: rgba(244,63,94,0.03); border-radius: 12px; border: 1px solid rgba(244,63,94,0.2);">
-                <div
-                    style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: var(--accent-rose); font-weight: 600; font-size: 0.9rem;">
-                    <i class="fa-solid fa-list-check"></i> Already Screened — Select to Re-analyze
-                </div>
-                <div id="rescoreTableWrap"
-                    style="max-height: 230px; overflow-y: auto; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">
-                        <thead>
-                            <tr style="background: rgba(255,255,255,0.03); text-align: left; position: sticky; top: 0;">
-                                <th style="padding: 10px 12px; width: 36px; color: var(--text-secondary);">✓</th>
-                                <th style="padding: 10px 12px; color: var(--text-secondary);">Candidate File</th>
-                                <th style="padding: 10px 12px; color: var(--text-secondary); text-align: center;">
-                                    Current Score</th>
-                            </tr>
-                        </thead>
-                        <tbody id="rescoreTableBody">
-                            <tr>
-                                <td colspan="3"
-                                    style="padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 0.8rem;">
-                                    Select a folder first to see screened candidates.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div id="rescoreCount"
-                    style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.6rem; text-align: right;">
-                </div>
+            style="display: none; margin-top: 1rem; padding: 1rem 1.5rem; background: rgba(244,63,94,0.03); border: 1px solid rgba(244,63,94,0.2); border-radius: 12px;">
+            <div style="font-weight: 700; font-size: 0.9rem; color: var(--accent-rose); margin-bottom: 1rem;">
+                <i class="fa-solid fa-list-check" style="margin-right: 0.5rem;"></i> Already Screened — Select to Re-analyze
             </div>
+            
+            <div class="table-responsive" style="overflow-x: auto; padding-bottom: 0.5rem;">
+                <table style="width: 100%; min-width: 500px; border-collapse: separate; border-spacing: 0 8px; table-layout: fixed;">
+                    <thead>
+                        <tr style="color: var(--text-secondary); font-size: 0.8rem; font-weight: 700;">
+                            <th style="width: 40px;"><i class="fa-solid fa-check"></i></th>
+                            <th style="text-align: left; width: 35%;">Candidate File</th>
+                            <th style="text-align: left; width: 45%;">Feedback / Reason</th>
+                            <th style="text-align: center; width: 15%;">Current Score</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rescoreTableBody">
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="rescoreCount"
+                style="text-align: right; font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;"></div>
         </div>
 
         <!-- Progress Section -->
@@ -149,6 +140,35 @@
                         Match Score</div>
                 </div>
             </div>
+
+            <!-- Score Selection for Rescored Candidates -->
+            <div id="rescoreScoreSelection" style="display: none; margin-bottom: 1.5rem; padding: 1.2rem; background: rgba(244,63,94,0.04); border-radius: 12px; border: 1px solid rgba(244,63,94,0.25);">
+                <div style="font-weight: 700; font-size: 0.9rem; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: var(--accent-rose);">
+                    <i class="fa-solid fa-scale-balanced"></i> Select Final Match Score
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.6rem;" id="scoreRadioGroup">
+                    <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid var(--border-color); transition: all 0.2s;">
+                        <input type="radio" name="finalScoreChoice" value="previous" style="accent-color: var(--accent-rose);">
+                        <span style="font-weight: 600; font-size: 0.85rem;">Previous Score:</span>
+                        <span id="scoreChoice_previous" style="font-weight: 800; color: var(--accent-amber);">—</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid var(--border-color); transition: all 0.2s;">
+                        <input type="radio" name="finalScoreChoice" value="new" checked style="accent-color: var(--accent-rose);">
+                        <span style="font-weight: 600; font-size: 0.85rem;">New Score:</span>
+                        <span id="scoreChoice_new" style="font-weight: 800; color: var(--accent-emerald);">—</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid var(--border-color); transition: all 0.2s;">
+                        <input type="radio" name="finalScoreChoice" value="average" style="accent-color: var(--accent-rose);">
+                        <span style="font-weight: 600; font-size: 0.85rem;">Average:</span>
+                        <span id="scoreChoice_average" style="font-weight: 800; color: var(--accent-indigo);">—</span>
+                    </label>
+                </div>
+                <button id="confirmScoreBtn" class="btn" onclick="finalizeRescore()" style="margin-top: 1rem; width: 100%; background: var(--accent-rose); color: white; font-weight: 700; height: 42px;">
+                    <i class="fa-solid fa-check-circle"></i> Confirm & Sync to SharePoint
+                </button>
+                <div id="finalizeStatus" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.5rem; text-align: center;"></div>
+            </div>
+
             <div id="detail_params" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;"></div>
             <button
                 onclick="document.getElementById('resultDetailSection').style.display='none'; window.scrollTo({top: 0, behavior: 'smooth'});"
@@ -398,14 +418,14 @@
         const countEl = document.getElementById('rescoreCount');
 
         if (!folderName) {
-            tbody.innerHTML = '<tr><td colspan="3" style="padding:2rem; text-align:center; color:var(--text-secondary);">Select a folder first.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="padding:2rem; text-align:center; color:var(--text-secondary);">Select a folder first.</td></tr>';
             return;
         }
 
         const screened = (spData.resumes[folderName] || []).filter(r => (r.match_score || 0) > 0);
 
         if (screened.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="padding:2rem; text-align:center; color:var(--text-secondary); font-size:0.8rem;"><i class="fa-solid fa-circle-check" style="color:var(--accent-emerald); margin-right:5px;"></i>No screened candidates yet in this folder.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="padding:2rem; text-align:center; color:var(--text-secondary); font-size:0.8rem;"><i class="fa-solid fa-circle-check" style="color:var(--accent-emerald); margin-right:5px;"></i>No screened candidates yet in this folder.</td></tr>';
             countEl.innerText = '';
             return;
         }
@@ -413,10 +433,14 @@
         tbody.innerHTML = screened.map(r => {
             const scoreColor = r.match_score >= 75 ? '#10b981' : (r.match_score >= 50 ? '#f59e0b' : '#ef4444');
             const isChecked = rescoreSet.has(r.name) ? 'checked' : '';
+            const inputVisibility = isChecked ? '' : 'visibility: hidden;';
             return `
                 <tr class="rescore-row">
-                    <td><input type="checkbox" class="rescore-cb" value="${r.name}" ${isChecked} onchange="onRescoreCbChange(this)"></td>
+                    <td><input type="checkbox" class="rescore-cb" data-score="${r.match_score}" value="${r.name}" ${isChecked} onchange="onRescoreCbChange(this)"></td>
                     <td style="color: var(--text-primary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.name}">${r.name}</td>
+                    <td class="feedback-cell">
+                        <input type="text" class="feedback-input" data-name="${r.name}" placeholder="Reason for rescoring…" style="width: 100%; padding: 4px 8px; font-size: 0.78rem; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.04); color: var(--text-primary); ${inputVisibility}">
+                    </td>
                     <td style="text-align: center;">
                         <span style="display:inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; background: ${scoreColor}; color: white;">${r.match_score}</span>
                     </td>
@@ -428,10 +452,17 @@
     }
 
     function onRescoreCbChange(cb) {
+        const row = cb.closest('tr');
+        const feedbackInput = row.querySelector('.feedback-input');
         if (cb.checked) {
             rescoreSet.add(cb.value);
+            if (feedbackInput) feedbackInput.style.visibility = 'visible';
         } else {
             rescoreSet.delete(cb.value);
+            if (feedbackInput) {
+                feedbackInput.style.visibility = 'hidden';
+                feedbackInput.value = '';
+            }
         }
         updateRescoreCount();
     }
@@ -453,9 +484,14 @@
         const newResumes = allInFolder.filter(r => (r.match_score || 0) === 0);
 
         // Rescored resumes: selected via checkbox — force match_score to 0 so backend processes them
+        // Also pick up the feedback input value and the original score
         const rescoreResumes = allInFolder
             .filter(r => rescoreSet.has(r.name))
-            .map(r => ({ ...r, match_score: 0, _is_rescore: true }));
+            .map(r => {
+                const feedbackInput = document.querySelector(`.feedback-input[data-name="${r.name}"]`);
+                const feedback = feedbackInput ? feedbackInput.value.trim() : '';
+                return { ...r, previous_score: r.match_score, match_score: 0, _is_rescore: true, reviewer_feedback: feedback };
+            });
 
         // Combine both groups
         const resumes = [...newResumes, ...rescoreResumes];
@@ -602,9 +638,13 @@
         document.getElementById('candidateList').prepend(card);
     }
 
+    // Store the currently viewed candidate index for score finalization
+    let currentDetailIndex = null;
+
     function showDetail(index, cardEl) {
         document.querySelectorAll('.candidate-card').forEach(c => c.classList.remove('active'));
         cardEl.classList.add('active');
+        currentDetailIndex = index;
 
         const c = bulkResults[index];
         const section = document.getElementById('resultDetailSection');
@@ -617,6 +657,29 @@
         const scoreEl = document.getElementById('detail_score');
         scoreEl.innerText = c.score;
         scoreEl.style.color = c.score >= 75 ? '#34d399' : (c.score >= 50 ? '#fbbf24' : '#f43f5e');
+
+        // Score selection UI for rescored candidates
+        const selectionPanel = document.getElementById('rescoreScoreSelection');
+        const finalizeStatus = document.getElementById('finalizeStatus');
+        finalizeStatus.innerText = '';
+
+        if (c._is_rescore && c.previous_score !== undefined && c.previous_score !== null) {
+            const prevScore = c.previous_score;
+            const newScore = c.score;
+            const avgScore = Math.round((prevScore + newScore) / 2);
+
+            document.getElementById('scoreChoice_previous').innerText = prevScore;
+            document.getElementById('scoreChoice_new').innerText = newScore;
+            document.getElementById('scoreChoice_average').innerText = avgScore;
+
+            // Reset radio to 'new' by default
+            document.querySelector('input[name="finalScoreChoice"][value="new"]').checked = true;
+
+            selectionPanel.style.display = 'block';
+            document.getElementById('confirmScoreBtn').disabled = false;
+        } else {
+            selectionPanel.style.display = 'none';
+        }
 
         const params = [
             { label: '⏱ Experience', key: 'experience' },
@@ -639,6 +702,66 @@
         }).join('');
 
         section.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function finalizeRescore() {
+        if (currentDetailIndex === null) return;
+        const c = bulkResults[currentDetailIndex];
+        const choice = document.querySelector('input[name="finalScoreChoice"]:checked')?.value;
+        if (!choice) { alert('Please select a score option.'); return; }
+
+        const prevScore = c.previous_score || 0;
+        const newScore = c.score;
+        let finalScore;
+        if (choice === 'previous') finalScore = prevScore;
+        else if (choice === 'new') finalScore = newScore;
+        else finalScore = Math.round((prevScore + newScore) / 2);
+
+        const btn = document.getElementById('confirmScoreBtn');
+        const statusEl = document.getElementById('finalizeStatus');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Syncing...';
+        statusEl.innerText = '';
+
+        const jdSelect = document.getElementById('sp_jd_select');
+        const folderName = document.getElementById('sp_folder_select').value;
+
+        try {
+            const resp = await fetch('/api/rescore/finalize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidate_id: c.id,
+                    final_score: finalScore,
+                    resume_filename: c.resume_filename,
+                    resume_id: c.resume_id || '',
+                    candidate_name: c.name,
+                    candidate_email: c.email || '',
+                    candidate_phone: '',
+                    job_code: folderName,
+                    jd_title: jdSelect.options[jdSelect.selectedIndex]?.text || '',
+                }),
+            });
+            const result = await resp.json();
+            if (resp.ok) {
+                statusEl.innerHTML = `<span style="color: var(--accent-emerald);">✅ Score finalized to <b>${finalScore}</b> and synced to SharePoint.</span>`;
+                // Update the in-memory candidate score
+                c.score = finalScore;
+                c._is_rescore = false; // prevent re-showing selection
+                // Update the score display
+                const scoreEl = document.getElementById('detail_score');
+                scoreEl.innerText = finalScore;
+                scoreEl.style.color = finalScore >= 75 ? '#34d399' : (finalScore >= 50 ? '#fbbf24' : '#f43f5e');
+                document.getElementById('rescoreScoreSelection').style.display = 'none';
+            } else {
+                statusEl.innerHTML = `<span style="color: var(--accent-rose);">❌ ${result.error}</span>`;
+            }
+        } catch (err) {
+            statusEl.innerHTML = `<span style="color: var(--accent-rose);">❌ ${err.message}</span>`;
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Confirm & Sync to SharePoint';
+        }
     }
 
     function badgeHtml(status) {

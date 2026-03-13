@@ -9,10 +9,18 @@ from app.models import ComprehensiveResumeAnalysis
 # Removed global client initialization to add api fallback
 
 
-def evaluate_resume(resume_text: str, jd_text: str) -> dict:
+def evaluate_resume(
+    resume_text: str,
+    jd_text: str,
+    previous_score: int = None,
+    reviewer_feedback: str = None,
+) -> dict:
     """
     Runs AI analysis on resume and JD content using Gemini.
     Returns a parsed dictionary conforming to ComprehensiveResumeAnalysis.
+
+    If reviewer_feedback is provided, the prompt includes an addendum asking
+    the model to re-evaluate the candidate in light of the human feedback.
     """
 
     if not Config.GOOGLE_API_KEYS:
@@ -24,6 +32,19 @@ def evaluate_resume(resume_text: str, jd_text: str) -> dict:
 
     Resume: {resume_text}
     JD: {jd_text}
+    """
+
+    # Append rescore context when human feedback is provided
+    if reviewer_feedback:
+        prompt += f"""
+
+    IMPORTANT — RESCORE CONTEXT:
+    This candidate was previously scored {previous_score if previous_score is not None else 'N/A'} out of 100.
+    A human reviewer has provided the following feedback/reason for rescoring:
+    "{reviewer_feedback}"
+
+    Re-evaluate the candidate against the JD, explicitly adjusting your
+    analysis and overall_match_score to reflect this new human feedback.
     """
     last_exception = None
 
