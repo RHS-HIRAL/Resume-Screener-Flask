@@ -56,8 +56,8 @@
         </div>
 
         <!-- Rescore Mode Toggle -->
-        <div
-            style="margin-top: 1.5rem; padding: 1rem 1.2rem; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+        <div id="rescoreToggleContainer"
+            style="margin-top: 1.5rem; padding: 1rem 1.2rem; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid var(--border-color); display: none; align-items: center; justify-content: space-between; gap: 1rem;">
             <div>
                 <div style="font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">
                     <i class="fa-solid fa-rotate" style="color: var(--accent-rose);"></i> Rescore Mode
@@ -334,6 +334,8 @@
         document.getElementById('sp_folder_select').onchange = () => {
             const folder = document.getElementById('sp_folder_select').value;
             const status = document.getElementById('selectionStatus');
+            const rescoreToggleWrap = document.getElementById('rescoreToggleContainer');
+            
             if (folder && spData.resumes[folder]) {
                 const allFiles = spData.resumes[folder];
                 const total = allFiles.length;
@@ -347,12 +349,27 @@
                 }
                 status.innerHTML = statusHtml;
                 status.style.display = 'block';
+
+                // Toggle Rescore Mode visibility based on screened count
+                if (screened > 0) {
+                    rescoreToggleWrap.style.display = 'flex';
+                } else {
+                    rescoreToggleWrap.style.display = 'none';
+                    document.getElementById('rescore_toggle').checked = false;
+                    document.getElementById('rescoreSection').style.display = 'none';
+                    rescoreSet.clear();
+                }
+
                 // Refresh rescore table if in rescore mode
                 if (document.getElementById('rescore_toggle').checked) {
                     renderRescoreTable();
                 }
             } else {
                 status.style.display = 'none';
+                rescoreToggleWrap.style.display = 'none';
+                document.getElementById('rescore_toggle').checked = false;
+                document.getElementById('rescoreSection').style.display = 'none';
+                rescoreSet.clear();
             }
             validateSelections();
         };
