@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-print('hello')
 
 class Config:
     """Application configuration variables."""

@@ -221,10 +221,15 @@ def calculate_form_score(
         results["Willing to Relocate"] = None
 
     # 3. Notice Period
-    if notice_val and max_notice_days is not None:
+    if notice_val:
         candidate_notice = _parse_notice_days(notice_val)
         if candidate_notice is not None:
-            match = candidate_notice <= max_notice_days
+            if max_notice_days is not None:
+                # JD specifies a limit — check if candidate is within it
+                match = candidate_notice <= max_notice_days
+            else:
+                # JD has no notice limit — any notice period is acceptable
+                match = True
             results["Notice Period"] = {
                 "points": WEIGHTS["Notice Period"] if match else 0,
                 "max": WEIGHTS["Notice Period"],
@@ -237,10 +242,15 @@ def calculate_form_score(
         results["Notice Period"] = None
 
     # 4. Expected Salary
-    if salary_val and max_salary_lpa is not None:
+    if salary_val:
         candidate_salary = _parse_salary_lpa(salary_val)
         if candidate_salary is not None:
-            match = candidate_salary <= max_salary_lpa
+            if max_salary_lpa is not None:
+                # JD specifies a salary cap — check if candidate is within it
+                match = candidate_salary <= max_salary_lpa
+            else:
+                # JD has no salary cap stated — treat any salary as acceptable
+                match = True
             results["Expected Salary"] = {
                 "points": WEIGHTS["Expected Salary"] if match else 0,
                 "max": WEIGHTS["Expected Salary"],

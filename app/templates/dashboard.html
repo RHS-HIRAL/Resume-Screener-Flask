@@ -186,7 +186,6 @@
                     <th style="padding: 1rem 1.5rem;">Role</th>
                     <th style="padding: 1rem 1.5rem;">Score</th>
                     <th style="padding: 1rem 1.5rem;">QA Score</th>
-                    <th style="padding: 1rem 1.5rem;">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -213,16 +212,10 @@
                         <span style="color: var(--text-secondary); font-size: 0.8rem;">--</span>
                         {% endif %}
                     </td>
-                    <td style="padding: 1rem 1.5rem;">
-                        <a href="{{ url_for('views.outreach') }}?cid={{ c.id }}" class="btn btn-primary"
-                            style="padding: 0.4rem 1rem; font-size: 0.8rem;">
-                            <i class="fa-solid fa-paper-plane"></i>
-                        </a>
-                    </td>
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="4" style="padding: 3rem; text-align: center; color: var(--text-secondary);">
+                    <td colspan="5" style="padding: 3rem; text-align: center; color: var(--text-secondary);">
                         No candidates screened yet. <a href="{{ url_for('views.screener') }}"
                             style="color: var(--accent-indigo);">Start screening</a>.
                     </td>

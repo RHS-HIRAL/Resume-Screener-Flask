@@ -46,8 +46,8 @@
             </h3>
             <div style="display: flex; gap: 1rem; align-items: flex-end; background: #f8fafc; padding: 1.5rem; border-radius: 12px; border: 1px dashed var(--border-color);">
                 <div style="flex: 1;">
-                    <label class="form-label">Call Recording (.mp3, .wav)</label>
-                    <input type="file" id="audio_file" class="form-control" accept="audio/*">
+                    <label class="form-label">Call Recording (MP3, WAV, AAC, OGG, Opus, FLAC, M4A, AMR, WMA, WebM)</label>
+                    <input type="file" id="audio_file" class="form-control" accept=".mp3,.wav,.aac,.ogg,.opus,.flac,.m4a,.amr,.wma,.webm,audio/*">
                 </div>
                 <button id="transcribe_btn" class="btn btn-primary" onclick="transcribeAudio()">
                     <i class="fa-solid fa-microphone-lines"></i> Transcribe
