@@ -292,3 +292,36 @@ def update_candidate_match_score(candidate_db_id: int, match_score: int) -> bool
             (match_score, candidate_db_id),
         )
         return cur.rowcount > 0
+
+
+def delete_candidates_by_ids(candidate_ids: list[int]) -> tuple[int, list[dict]]:
+    """
+    Hard-delete candidates by their integer PKs.
+    Returns (deleted_count, list of {id, resume_filename, role_name}) so the
+    caller can clean up SharePoint files if requested.
+    ON DELETE CASCADE in the schema automatically removes related
+    call_qa_results rows.
+    """
+    if not candidate_ids:
+        return 0, []
+
+    with get_cursor(commit=True) as cur:
+        # Fetch filenames BEFORE deletion so caller can remove SP files
+        cur.execute(
+            """
+            SELECT c.id, c.resume_filename, j.role_name
+            FROM candidates c
+            LEFT JOIN jobs j ON j.id = c.job_id
+            WHERE c.id = ANY(%s)
+            """,
+            (candidate_ids,),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+
+        cur.execute(
+            "DELETE FROM candidates WHERE id = ANY(%s)",
+            (candidate_ids,),
+        )
+        deleted = cur.rowcount
+
+    return deleted, rows

@@ -125,8 +125,12 @@
     </div>
 </div>
 
+<!-- Safely pass Jinja variables to JavaScript using a data script tag -->
+<script id="candidates-data" type="application/json">
+    {{ candidates | tojson }}
+</script>
 <script>
-    const candidatesData = {{ candidates | tojson }};
+    const candidatesData = JSON.parse(document.getElementById('candidates-data').textContent);
     let currentHistory = [];
 
     // ── Helpers ────────────────────────────────────────────────────────────────
