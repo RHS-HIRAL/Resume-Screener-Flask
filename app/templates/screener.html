@@ -330,6 +330,9 @@
         const jdSelect = document.getElementById('sp_jd_select');
         const folderSelect = document.getElementById('sp_folder_select');
 
+        const prevJd = jdSelect.value;
+        const prevFolder = folderSelect.value;
+
         jdSelect.innerHTML = '<option value="">— Select JD —</option>';
         spData.jds.forEach(jd => {
             const opt = document.createElement('option');
@@ -345,6 +348,14 @@
             opt.innerText = folder;
             folderSelect.appendChild(opt);
         });
+
+        if (prevJd && Array.from(jdSelect.options).some(o => o.value === prevJd)) {
+            jdSelect.value = prevJd;
+        }
+        if (prevFolder && Array.from(folderSelect.options).some(o => o.value === prevFolder)) {
+            folderSelect.value = prevFolder;
+            folderSelect.dispatchEvent(new Event('change'));
+        }
     }
 
     function setupListeners() {
@@ -359,8 +370,8 @@
             if (folder && spData.resumes[folder]) {
                 const allFiles = spData.resumes[folder];
                 const total = allFiles.length;
-                const newCount = allFiles.filter(r => (r.match_score || 0) === 0).length;
-                const corruptedCount = allFiles.filter(r => (r.match_score || 0) === -1).length;
+                const newCount = allFiles.filter(r => Number(r.match_score || 0) === 0).length;
+                const corruptedCount = allFiles.filter(r => Number(r.match_score || 0) === -1).length;
                 const screened = total - newCount - corruptedCount;
                 
                 let statusHtml = `📁 Total: ${total} | <span style="color: var(--accent-emerald); font-weight: 600;">New: ${newCount}</span> | <span style="color: var(--accent-indigo); font-weight: 600;">Screened: ${screened}</span>`;
@@ -422,7 +433,7 @@
             return;
         }
 
-        const screened = (spData.resumes[folderName] || []).filter(r => (r.match_score || 0) > 0);
+        const screened = (spData.resumes[folderName] || []).filter(r => Number(r.match_score || 0) > 0);
 
         if (screened.length === 0) {
             tbody.innerHTML = '<tr><td colspan="4" style="padding:2rem; text-align:center; color:var(--text-secondary); font-size:0.8rem;"><i class="fa-solid fa-circle-check" style="color:var(--accent-emerald); margin-right:5px;"></i>No screened candidates yet in this folder.</td></tr>';
@@ -481,7 +492,7 @@
         const allInFolder = spData.resumes[folderName] || [];
 
         // New resumes: those with score exactly 0 (excluding corrupted -1)
-        const newResumes = allInFolder.filter(r => (r.match_score || 0) === 0);
+        const newResumes = allInFolder.filter(r => Number(r.match_score || 0) === 0);
 
         // Rescored resumes: selected via checkbox — force match_score to 0 so backend processes them
         // Also pick up the feedback input value and the original score
@@ -779,6 +790,7 @@
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Start Bulk Analysis';
         validateSelections();
+        fetchFiles();
     }
 
     initPage();
