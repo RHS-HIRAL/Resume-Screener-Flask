@@ -252,6 +252,7 @@ class SharePointMatchScoreUpdater:
         metadata: dict,
         role_hint: str = "",
         confirmed_item_id: str = "",
+        overwrite: bool = False,
     ) -> tuple[str, str, list[dict]]:
         drive_id = self._get_drive_id()
         if confirmed_item_id:
@@ -268,9 +269,36 @@ class SharePointMatchScoreUpdater:
                 return ("NEEDS_CONFIRM", "Multiple matches found.", candidates)
             item_id = candidates[0]["id"]
 
+        # Fetch existing fields before patching
+        headers = self._get_headers()
+        existing_fields = {}
+        try:
+            get_url = f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item_id}?$expand=listItem($expand=fields)"
+            get_resp = self.session.get(get_url, headers=headers, timeout=30)
+            if get_resp.ok:
+                existing_fields = (get_resp.json().get("listItem") or {}).get("fields", {})
+        except Exception as e:
+            print(f"[SP] Could not fetch existing fields for {filename}: {e}")
+
+        # Construct safe metadata payload
+        final_metadata = {}
+        for key, value in metadata.items():
+            # If overwrite is true, or we don't have existing fields, or the field is "MatchScore" (which we purposefully update on bulk), or existing field is empty/Unknown
+            if (
+                overwrite 
+                or key == "MatchScore"
+                or not existing_fields.get(key)
+                or existing_fields.get(key) == "Unknown"
+                or str(existing_fields.get(key)).strip() == ""
+            ):
+                final_metadata[key] = value
+
+        if not final_metadata:
+            return ("OK", f"No new metadata to patch for `{filename}`.", [])
+
         url = f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item_id}/listItem/fields"
         resp = self.session.patch(
-            url, headers=self._get_headers(), json=metadata, timeout=30
+            url, headers=headers, json=final_metadata, timeout=30
         )
         if resp.status_code == 200:
             return ("OK", f"Metadata updated successfully for `{filename}`.", [])
