@@ -35,6 +35,13 @@ def dashboard():
         )
 
 
+@views_bp.route("/manual_upload")
+@login_required
+def manual_upload():
+    """UI for Manual Resume Upload."""
+    return render_template("manual_upload.html")
+
+
 @views_bp.route("/screener")
 @login_required
 def screener():
