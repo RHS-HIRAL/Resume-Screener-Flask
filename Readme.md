@@ -1,3 +1,5 @@
+# Application structure
+```
 resume_screener/
 │
 ├── .env                                     # Secret keys, DB creds, API keys
@@ -173,3 +175,4 @@ resume_screener/
         ├── css/
         │   └── style.css                   # Global styles, sidebar, responsive layout
         └── js/                             # Per-page JS — fetch calls, DOM, SSE
+```

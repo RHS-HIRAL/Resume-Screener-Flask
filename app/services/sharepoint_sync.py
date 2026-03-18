@@ -12,15 +12,17 @@ import os
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Iterator, Dict, Any, Optional
 from urllib.parse import quote
 
 import msal
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from config import Config
 
 logger = logging.getLogger("sharepoint_sync")
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  AUTH
@@ -147,7 +149,6 @@ JD_FIELD_MAP = {
     "Title": "Title",
 }
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 #  SHAREPOINT MANAGER  (unified for resumes + JDs)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -155,21 +156,37 @@ JD_FIELD_MAP = {
 
 class SyncSharePointManager:
     def __init__(self, headers: dict):
-        self.headers = headers
         self.base = "https://graph.microsoft.com/v1.0"
         self._site_id = None
         self._drive_id = None
         self._ensured_folders: set = set()
         self._existing_jd_pdfs = None
 
+        # Connection Pooling & Retry Adapter
+        self.session = requests.Session()
+        self.session.headers.update(headers)
+
+        retries = Retry(
+            total=5,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            respect_retry_after_header=True,
+        )
+        adapter = HTTPAdapter(max_retries=retries)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
+
+    # DRY Helper for Graph API calls
+    def _request(self, method: str, url: str, **kwargs) -> requests.Response:
+        kwargs.setdefault("timeout", 30)
+        return self.session.request(method, url, **kwargs)
+
     def _get_site_id(self) -> str:
         if self._site_id:
             return self._site_id
         domain = Config.SHAREPOINT_SITE_DOMAIN
         path = (Config.SHAREPOINT_SITE_PATH or "").strip("/")
-        resp = requests.get(
-            f"{self.base}/sites/{domain}:/{path}", headers=self.headers, timeout=30
-        )
+        resp = self._request("GET", f"{self.base}/sites/{domain}:/{path}")
         resp.raise_for_status()
         self._site_id = resp.json()["id"]
         return self._site_id
@@ -177,11 +194,7 @@ class SyncSharePointManager:
     def _get_drive_id(self) -> str:
         if self._drive_id:
             return self._drive_id
-        resp = requests.get(
-            f"{self.base}/sites/{self._get_site_id()}/drives",
-            headers=self.headers,
-            timeout=30,
-        )
+        resp = self._request("GET", f"{self.base}/sites/{self._get_site_id()}/drives")
         resp.raise_for_status()
         drives = resp.json().get("value", [])
         target = (Config.SHAREPOINT_DRIVE_NAME or "").lower()
@@ -200,20 +213,18 @@ class SyncSharePointManager:
             current = f"{current}/{part}" if current else part
             if current in self._ensured_folders:
                 continue
+
             check_url = f"{self.base}/drives/{drive_id}/root:/{quote(current)}"
-            if (
-                requests.get(check_url, headers=self.headers, timeout=15).status_code
-                == 404
-            ):
+            if self._request("GET", check_url, timeout=15).status_code == 404:
                 parent = "/".join(current.split("/")[:-1])
                 create_url = (
                     f"{self.base}/drives/{drive_id}/root:/{quote(parent)}:/children"
                     if parent
                     else f"{self.base}/drives/{drive_id}/root/children"
                 )
-                requests.post(
+                self._request(
+                    "POST",
                     create_url,
-                    headers=self.headers,
                     json={
                         "name": part,
                         "folder": {},
@@ -226,22 +237,22 @@ class SyncSharePointManager:
     def file_exists(self, remote_path: str) -> bool:
         drive_id = self._get_drive_id()
         try:
-            resp = requests.get(
+            resp = self._request(
+                "GET",
                 f"{self.base}/drives/{drive_id}/root:/{quote(remote_path.strip('/'))}",
-                headers=self.headers,
                 timeout=10,
             )
             return resp.status_code == 200
         except Exception:
             return False
 
-    def get_file_metadata(self, folder: str, filename: str):
+    def get_file_metadata(self, folder: str, filename: str) -> Optional[dict]:
         drive_id = self._get_drive_id()
         encoded = quote(f"{folder}/{filename}")
         try:
-            resp = requests.get(
+            resp = self._request(
+                "GET",
                 f"{self.base}/drives/{drive_id}/root:/{encoded}?$expand=listItem",
-                headers=self.headers,
                 timeout=15,
             )
             if resp.status_code == 200:
@@ -257,11 +268,10 @@ class SyncSharePointManager:
             return
         fields = {field_map[k]: v for k, v in metadata.items() if k in field_map and v}
         if fields:
-            requests.patch(
+            self._request(
+                "PATCH",
                 f"{self.base}/drives/{drive_id}/items/{item_id}/listItem/fields",
-                headers=self.headers,
                 json=fields,
-                timeout=30,
             )
 
     def _content_type(self, filename: str) -> str:
@@ -276,9 +286,9 @@ class SyncSharePointManager:
         self, drive_id: str, folder: str, filename: str, file_path: str
     ) -> dict:
         url = f"{self.base}/drives/{drive_id}/root:/{quote(f'{folder}/{filename}')}:/content"
-        h = {**self.headers, "Content-Type": self._content_type(filename)}
+        headers = {"Content-Type": self._content_type(filename)}
         with open(file_path, "rb") as f:
-            resp = requests.put(url, headers=h, data=f, timeout=120)
+            resp = self._request("PUT", url, headers=headers, data=f, timeout=120)
         resp.raise_for_status()
         return resp.json()
 
@@ -286,8 +296,8 @@ class SyncSharePointManager:
         drive_id = self._get_drive_id()
         self._ensure_folder(drive_id, folder)
         url = f"{self.base}/drives/{drive_id}/root:/{quote(f'{folder}/{filename}')}:/content"
-        h = {**self.headers, "Content-Type": self._content_type(filename)}
-        resp = requests.put(url, headers=h, data=content, timeout=60)
+        headers = {"Content-Type": self._content_type(filename)}
+        resp = self._request("PUT", url, headers=headers, data=content, timeout=60)
         resp.raise_for_status()
         return resp.json()
 
@@ -295,7 +305,7 @@ class SyncSharePointManager:
         self, file_path: str, target_filename: str, subfolder: str, metadata: dict
     ) -> dict:
         drive_id = self._get_drive_id()
-        full_folder = f"{Config.SHAREPOINT_BASE_FOLDER.strip('/')}/{subfolder}"
+        full_folder = f"{Config.SHAREPOINT_JOBS_FOLDER.strip('/')}/{subfolder}"
         self._ensure_folder(drive_id, full_folder)
         item = self._simple_upload(drive_id, full_folder, target_filename, file_path)
         self._set_metadata(drive_id, item.get("id", ""), metadata, RESUME_FIELD_MAP)
@@ -303,11 +313,10 @@ class SyncSharePointManager:
 
     def update_match_score(self, item_id: str, score: int):
         drive_id = self._get_drive_id()
-        requests.patch(
+        self._request(
+            "PATCH",
             f"{self.base}/drives/{drive_id}/items/{item_id}/listItem/fields",
-            headers=self.headers,
             json={"MatchScore": score},
-            timeout=30,
         )
 
     def upload_text_file(
@@ -319,59 +328,58 @@ class SyncSharePointManager:
         parent = "/".join(remote_path.strip("/").split("/")[:-1])
         if parent:
             self._ensure_folder(drive_id, parent)
+
         url = f"{self.base}/drives/{drive_id}/root:/{quote(remote_path.strip('/'))}:/content"
-        h = {**self.headers, "Content-Type": "text/plain; charset=utf-8"}
+        headers = {"Content-Type": "text/plain; charset=utf-8"}
         with open(local_path, "rb") as f:
-            resp = requests.put(url, headers=h, data=f, timeout=60)
+            resp = self._request("PUT", url, headers=headers, data=f, timeout=60)
         return resp.status_code in (200, 201)
 
-    def list_subfolders(self, folder_path: str) -> list:
+    # Yields paginated folders efficiently
+    def list_subfolders(self, folder_path: str) -> Iterator[Dict[str, Any]]:
         drive_id = self._get_drive_id()
         encoded = quote(folder_path.strip("/"), safe="/")
         url = f"{self.base}/drives/{drive_id}/root:/{encoded}:/children?$select=id,name,file,folder&$top=999"
-        items = []
+
         while url:
-            resp = requests.get(url, headers=self.headers, timeout=30)
+            resp = self._request("GET", url)
             if not resp.ok:
                 break
             data = resp.json()
-            items.extend(data.get("value", []))
+            for item in data.get("value", []):
+                if "folder" in item:
+                    yield {"name": item["name"], "id": item.get("id", "")}
             url = data.get("@odata.nextLink")
-        return [
-            {"name": i["name"], "id": i.get("id", "")} for i in items if "folder" in i
-        ]
 
-    def list_files(self, folder_path: str, extensions: tuple = ()) -> list:
+    # Yields paginated files efficiently
+    def list_files(
+        self, folder_path: str, extensions: tuple = ()
+    ) -> Iterator[Dict[str, Any]]:
         drive_id = self._get_drive_id()
         encoded = quote(folder_path.strip("/"), safe="/")
         url = f"{self.base}/drives/{drive_id}/root:/{encoded}:/children?$select=id,name,file,folder,@microsoft.graph.downloadUrl&$top=999"
-        items = []
+
         while url:
-            resp = requests.get(url, headers=self.headers, timeout=30)
+            resp = self._request("GET", url)
             if not resp.ok:
                 break
             data = resp.json()
-            items.extend(data.get("value", []))
-            url = data.get("@odata.nextLink")
-        results = []
-        for item in items:
-            if "file" not in item:
-                continue
-            name = item.get("name", "")
-            if extensions and not name.lower().endswith(extensions):
-                continue
-            results.append(
-                {
+            for item in data.get("value", []):
+                if "file" not in item:
+                    continue
+                name = item.get("name", "")
+                if extensions and not name.lower().endswith(extensions):
+                    continue
+                yield {
                     "id": item.get("id", ""),
                     "name": name,
                     "download_url": item.get("@microsoft.graph.downloadUrl", ""),
                 }
-            )
-        return results
+            url = data.get("@odata.nextLink")
 
     def download_file_by_url(self, download_url: str, dest_path) -> bool:
         try:
-            with requests.get(download_url, stream=True, timeout=60) as r:
+            with self.session.get(download_url, stream=True, timeout=60) as r:
                 r.raise_for_status()
                 with open(dest_path, "wb") as f:
                     for chunk in r.iter_content(chunk_size=8192):
@@ -384,9 +392,9 @@ class SyncSharePointManager:
     def download_file(self, item_id: str, dest_path) -> bool:
         drive_id = self._get_drive_id()
         try:
-            resp = requests.get(
+            resp = self._request(
+                "GET",
                 f"{self.base}/drives/{drive_id}/items/{item_id}/content",
-                headers=self.headers,
                 timeout=60,
                 allow_redirects=True,
             )
@@ -398,22 +406,25 @@ class SyncSharePointManager:
             return False
 
     # ── JD-specific ────────────────────────────────────────────────────────
+
     def jd_pdf_exists(self, filename: str) -> bool:
-        if self._existing_jd_pdfs is None:
+        """Checks if a JD PDF exists in memory cache to avoid O(N) network calls."""
+        if getattr(self, "_existing_jd_pdfs", None) is None:
             self._existing_jd_pdfs = self._list_existing_jd_pdfs()
         return filename.lower() in self._existing_jd_pdfs
 
     def _list_existing_jd_pdfs(self) -> set:
         try:
             drive_id = self._get_drive_id()
-            folder = Config.SHAREPOINT_JD_FOLDER.strip("/")
+            folder = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
             url = (
                 f"{self.base}/drives/{drive_id}/root:/{quote(folder)}:/children"
                 f"?$select=name&$top=1000"
             )
             names: set = set()
             while url:
-                resp = requests.get(url, headers=self.headers, timeout=30)
+                resp = self._request("GET", url)
+
                 if resp.status_code == 404:
                     return set()
                 resp.raise_for_status()
@@ -430,12 +441,14 @@ class SyncSharePointManager:
         self, file_path: str, target_filename: str, metadata: dict = None
     ) -> dict:
         drive_id = self._get_drive_id()
-        folder = Config.SHAREPOINT_JD_FOLDER.strip("/")
+        folder = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
         self._ensure_folder(drive_id, folder)
         item = self._simple_upload(drive_id, folder, target_filename, file_path)
         if metadata:
             self._set_metadata(drive_id, item.get("id", ""), metadata, JD_FIELD_MAP)
-        if self._existing_jd_pdfs is not None:
+
+        # Update cache if it exists
+        if getattr(self, "_existing_jd_pdfs", None) is not None:
             self._existing_jd_pdfs.add(target_filename.lower())
         return item
 
@@ -446,7 +459,7 @@ class SyncSharePointManager:
         metadata: dict = None,
         skip_existing: bool = True,
     ):
-        folder = Config.SHAREPOINT_TEXT_JD_FOLDER.strip("/")
+        folder = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
         remote_path = f"{folder}/{filename}"
         if skip_existing and self.file_exists(remote_path):
             return None
@@ -458,20 +471,54 @@ class SyncSharePointManager:
             self._set_metadata(drive_id, item.get("id", ""), metadata, JD_FIELD_MAP)
         return item
 
-    def find_item_by_path(self, remote_path: str) -> dict | None:
+    def find_item_by_path(self, remote_path: str) -> Optional[dict]:
         drive_id = self._get_drive_id()
         encoded = quote(remote_path.strip("/"))
         try:
-            resp = requests.get(
-                f"{self.base}/drives/{drive_id}/root:/{encoded}",
-                headers=self.headers,
-                timeout=15,
+            resp = self._request(
+                "GET", f"{self.base}/drives/{drive_id}/root:/{encoded}", timeout=15
             )
             if resp.status_code == 200:
                 return resp.json()
         except Exception:
             pass
         return None
+
+    def get_folder_files_metadata(self, folder_path: str) -> dict:
+        """
+        Fetches all files in a specific SharePoint folder to build a metadata cache.
+        Returns a dictionary mapping: { 'filename.ext': 'source_email_id' }
+        """
+        drive_id = self._get_drive_id()
+        encoded = quote(folder_path.strip("/"), safe="/")
+        url = f"{self.base}/drives/{drive_id}/root:/{encoded}:/children?$expand=listItem&$top=999"
+
+        file_metadata = {}
+        try:
+            while url:
+                resp = self._request("GET", url)
+                if not resp.ok:
+                    break
+                data = resp.json()
+
+                for item in data.get("value", []):
+                    if "file" in item:
+                        filename = item.get("name")
+                        source_email_id = (
+                            item.get("listItem", {})
+                            .get("fields", {})
+                            .get("SourceEmailID")
+                        )
+                        if filename and source_email_id:
+                            file_metadata[filename] = source_email_id
+
+                url = data.get("@odata.nextLink")
+        except Exception as e:
+            logger.error(
+                "Failed to fetch folder metadata cache for %s: %s", folder_path, e
+            )
+
+        return file_metadata
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -516,7 +563,6 @@ def run_sync() -> dict:
       4. Send Teams notification summary
     Returns a combined results dict.
     """
-    # Deferred imports to avoid circular dependencies
     from app.services.resume_sync import (
         run_email_fetch_pipeline,
         run_text_extraction_pipeline,
@@ -525,7 +571,7 @@ def run_sync() -> dict:
     from app.services.teams_notification import send_teams_notification
 
     logger.info("╔══════════════════════════════════════════════════════╗")
-    logger.info("║         FULL SYNC PIPELINE STARTED                  ║")
+    logger.info("║        FULL SYNC PIPELINE STARTED                  ║")
     logger.info("╚══════════════════════════════════════════════════════╝")
 
     try:
@@ -564,13 +610,12 @@ def run_sync() -> dict:
 
     _save_last_sync()
 
-    # ── Send Teams notification ──────────────────────────────────────────
     try:
         send_teams_notification(combined)
     except Exception as e:
         logger.error("Teams notification failed: %s", e)
 
     logger.info("╔══════════════════════════════════════════════════════╗")
-    logger.info("║         FULL SYNC PIPELINE COMPLETE                 ║")
+    logger.info("║        FULL SYNC PIPELINE COMPLETE                 ║")
     logger.info("╚══════════════════════════════════════════════════════╝")
     return combined

@@ -48,15 +48,8 @@ class Config:
     SHAREPOINT_SITE_DOMAIN = os.getenv("SHAREPOINT_SITE_DOMAIN")
     SHAREPOINT_SITE_PATH = os.getenv("SHAREPOINT_SITE_PATH")
     SHAREPOINT_DRIVE_NAME = os.getenv("SHAREPOINT_DRIVE_NAME")
-    SHAREPOINT_BASE_FOLDER = os.getenv("SHAREPOINT_BASE_FOLDER", "Resumes")
-    SHAREPOINT_JD_FOLDER = os.getenv("SHAREPOINT_JD_FOLDER", "JobDescriptions")
-    SHAREPOINT_TEXT_RESUMES_FOLDER = os.getenv(
-        "SHAREPOINT_TEXT_RESUMES_FOLDER", "Text Files/Resumes"
-    )
-    SHAREPOINT_TEXT_JD_FOLDER = os.getenv(
-        "SHAREPOINT_TEXT_JD_FOLDER", "Text Files/JobDescriptions"
-    )
-    SHAREPOINT_JOBS_FOLDER = os.getenv("SHAREPOINT_JOBS_FOLDER", "Jobs")
+    # Unified folder — all job-role data (resumes, JDs, text files) lives here
+    SHAREPOINT_JOBS_FOLDER = os.getenv("SHAREPOINT_JOBS_FOLDER", "JobRoles Data")
     MAILBOX_USER = os.getenv("MAILBOX_USER", "")
 
     # Sync Pipeline Configuration

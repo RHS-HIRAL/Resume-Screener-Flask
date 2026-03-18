@@ -298,22 +298,3 @@ def _background_qa_pipeline(
                 os.remove(audio_path)
             except Exception:
                 pass
-
-
-def run_qa_pipeline_async(
-    candidate_fk: int,
-    audio_path: str,
-    audio_filename: str,
-    qa_text: str = "",
-    prompt_template: str = "",
-):
-    """
-    Fire-and-forget: runs the full STT → Gemini → DB pipeline in a daemon thread
-    so the HTTP response is returned immediately.
-    """
-    thread = threading.Thread(
-        target=_background_qa_pipeline,
-        args=(candidate_fk, audio_path, audio_filename, qa_text, prompt_template),
-        daemon=True,
-    )
-    thread.start()

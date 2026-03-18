@@ -245,11 +245,6 @@ def bulk_update_candidate_status(candidate_ids: list, status: str) -> int:
         return cur.rowcount
 
 
-def delete_candidate(candidate_id: int) -> None:
-    with get_cursor(commit=True) as cur:
-        cur.execute("DELETE FROM candidates WHERE id = %s", (candidate_id,))
-
-
 def get_stats() -> dict:
     with get_cursor() as cur:
         cur.execute("SELECT COUNT(*) AS cnt FROM candidates")
@@ -264,15 +259,6 @@ def get_stats() -> dict:
             "pending_outreach": total - sent,
             "avg_score": round(float(avg_sc), 1),
         }
-
-
-def get_existing_resume_filenames(job_id: int) -> set:
-    with get_cursor() as cur:
-        cur.execute(
-            "SELECT resume_filename FROM candidates WHERE job_id = %s AND resume_filename IS NOT NULL",
-            (job_id,),
-        )
-        return {row["resume_filename"] for row in cur.fetchall()}
 
 
 def update_candidate_qa_score(candidate_id: str, qa_score: int) -> bool:

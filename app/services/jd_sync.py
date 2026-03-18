@@ -30,7 +30,14 @@ try:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import inch
-    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer
+    from reportlab.platypus import (
+        HRFlowable,
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
 
     HAS_REPORTLAB = True
 except ImportError:
@@ -286,106 +293,223 @@ def jd_to_text(jd: JobDescription) -> str:
 #  PDF GENERATOR  (requires reportlab)
 # ══════════════════════════════════════════════════════════════════════════════
 
+# Brand Colors
+C_PRIMARY = HexColor("#0F3A68")
+C_ACCENT = HexColor("#1976D2")
+C_BG_LIGHT = HexColor("#EDF4FC")
+C_TEXT = HexColor("#222222")
+C_SUBTLE = HexColor("#555555")
+C_DIVIDER = HexColor("#B0C4DE")
 
-def _safe_xml(text: str) -> str:
+
+def _build_pdf_styles() -> dict:
+    """Custom ReportLab paragraph styles for a professional JD PDF."""
+    base = getSampleStyleSheet()
+    s = {}
+
+    s["CompanyName"] = ParagraphStyle(
+        "CompanyName",
+        fontName="Helvetica-Bold",
+        fontSize=10,
+        textColor=C_ACCENT,
+        spaceAfter=0,
+    )
+    s["Title"] = ParagraphStyle(
+        "JDTitle",
+        parent=base["Title"],
+        fontSize=18,
+        leading=24,
+        textColor=C_PRIMARY,
+        spaceAfter=4,
+        alignment=TA_LEFT,
+        fontName="Helvetica-Bold",
+    )
+    s["MetaCell"] = ParagraphStyle(
+        "MetaCell",
+        fontName="Helvetica",
+        fontSize=9,
+        leading=13,
+        textColor=C_TEXT,
+        spaceAfter=0,
+    )
+    s["SectionHeading"] = ParagraphStyle(
+        "SectionHeading",
+        fontName="Helvetica-Bold",
+        fontSize=12,
+        leading=17,
+        textColor=C_PRIMARY,
+        spaceBefore=14,
+        spaceAfter=5,
+    )
+    s["Body"] = ParagraphStyle(
+        "Body",
+        fontName="Helvetica",
+        fontSize=9.5,
+        leading=14.5,
+        textColor=C_TEXT,
+        alignment=TA_JUSTIFY,
+        spaceAfter=5,
+    )
+    s["BodyBold"] = ParagraphStyle(
+        "BodyBold",
+        fontName="Helvetica",
+        fontSize=9.5,
+        leading=14.5,
+        textColor=C_TEXT,
+        alignment=TA_LEFT,
+        spaceAfter=3,
+    )
+    s["Bullet"] = ParagraphStyle(
+        "Bullet",
+        fontName="Helvetica",
+        fontSize=9.5,
+        leading=14,
+        textColor=C_TEXT,
+        leftIndent=18,
+        bulletIndent=6,
+        spaceAfter=3,
+    )
+    s["SubBullet"] = ParagraphStyle(
+        "SubBullet",
+        fontName="Helvetica",
+        fontSize=9,
+        leading=13,
+        textColor=C_SUBTLE,
+        leftIndent=36,
+        bulletIndent=22,
+        spaceAfter=2,
+    )
+    s["Footer"] = ParagraphStyle(
+        "Footer",
+        fontName="Helvetica",
+        fontSize=7,
+        textColor=C_SUBTLE,
+        alignment=TA_CENTER,
+    )
+    return s
+
+
+def _safe(text: str) -> str:
+    """Escape text for ReportLab Paragraph XML."""
     if not text:
         return ""
-    t = BeautifulSoup(text, "html.parser").get_text()
-    t = t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    return t
+    clean_text = BeautifulSoup(text, "html.parser").get_text()
+    clean_text = clean_text.replace("&", "&amp;")
+    clean_text = clean_text.replace("<", "&lt;")
+    clean_text = clean_text.replace(">", "&gt;")
+    return clean_text
+
+
+def _build_meta_pairs(jd: JobDescription) -> list[tuple[str, str]]:
+    pairs = []
+    combined_job_type = " / ".join(filter(None, [jd.job_type, jd.employment_type]))
+    for label, val in [
+        ("Location", jd.location),
+        ("Job Type", combined_job_type),
+        ("Department", jd.department),
+        ("Experience", jd.experience),
+        ("Shifts", jd.shifts),
+        ("Job Category", jd.job_category),
+    ]:
+        if val:
+            pairs.append((label, val))
+    return pairs
 
 
 def generate_job_pdf(jd: JobDescription, output_path: str) -> str:
+    """Generate a branded, professional PDF for a single JD. Returns output_path."""
     if not HAS_REPORTLAB:
         raise RuntimeError("reportlab is not installed. Cannot generate PDF.")
-    C_PRIMARY = HexColor("#0F3A68")
-    C_ACCENT = HexColor("#1976D2")
-    C_TEXT = HexColor("#222222")
-    C_SUBTLE = HexColor("#555555")
-    C_DIVIDER = HexColor("#B0C4DE")
 
-    base = getSampleStyleSheet()
-    styles = {
-        "CompanyName": ParagraphStyle(
-            "CompanyName",
-            fontName="Helvetica-Bold",
-            fontSize=10,
-            textColor=C_ACCENT,
-            spaceAfter=0,
-        ),
-        "Title": ParagraphStyle(
-            "JDTitle",
-            parent=base["Title"],
-            fontSize=18,
-            leading=24,
-            textColor=C_PRIMARY,
-            spaceAfter=4,
-            alignment=TA_LEFT,
-            fontName="Helvetica-Bold",
-        ),
-        "SectionHeading": ParagraphStyle(
-            "SectionHeading",
-            fontName="Helvetica-Bold",
-            fontSize=12,
-            leading=17,
-            textColor=C_PRIMARY,
-            spaceBefore=14,
-            spaceAfter=5,
-        ),
-        "Body": ParagraphStyle(
-            "Body",
-            fontName="Helvetica",
-            fontSize=9.5,
-            leading=14.5,
-            textColor=C_TEXT,
-            alignment=TA_JUSTIFY,
-            spaceAfter=5,
-        ),
-        "Bullet": ParagraphStyle(
-            "Bullet",
-            fontName="Helvetica",
-            fontSize=9.5,
-            leading=14,
-            textColor=C_TEXT,
-            leftIndent=18,
-            bulletIndent=6,
-            spaceAfter=3,
-        ),
-        "Footer": ParagraphStyle(
-            "Footer",
-            fontName="Helvetica",
-            fontSize=7,
-            textColor=C_SUBTLE,
-            alignment=TA_CENTER,
-        ),
-    }
+    styles = _build_pdf_styles()
+    story: list = []
+    W = A4[0] - 1.5 * inch
 
-    story = []
+    # Header bar
     story.append(Paragraph("Si2 Technologies", styles["CompanyName"]))
+    story.append(Spacer(1, 2))
     story.append(
         HRFlowable(width="100%", thickness=2.5, color=C_PRIMARY, spaceAfter=10)
     )
-    story.append(Paragraph(_safe_xml(jd.title) or "Job Description", styles["Title"]))
+
+    # Job Title
+    story.append(Paragraph(_safe(jd.title) or "Job Description", styles["Title"]))
     story.append(Spacer(1, 4))
+
+    # Metadata grid
+    meta_pairs = _build_meta_pairs(jd)
+    if meta_pairs:
+        rows = []
+        for i in range(0, len(meta_pairs), 2):
+            row = []
+            for j in range(2):
+                idx = i + j
+                if idx < len(meta_pairs):
+                    label, value = meta_pairs[idx]
+                    cell = Paragraph(
+                        f'<font name="Helvetica-Bold" size="7.5" color="#{C_SUBTLE.hexval()[2:]}">{_safe(label)}</font><br/>'
+                        f'<font name="Helvetica" size="9.5" color="#{C_TEXT.hexval()[2:]}">{_safe(value)}</font>',
+                        styles["MetaCell"],
+                    )
+                    row.append(cell)
+                else:
+                    row.append("")
+            rows.append(row)
+
+        col_w = W / 2
+        tbl = Table(rows, colWidths=[col_w, col_w])
+        tbl.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("BACKGROUND", (0, 0), (-1, -1), C_BG_LIGHT),
+                    ("BOX", (0, 0), (-1, -1), 0.5, C_DIVIDER),
+                    ("INNERGRID", (0, 0), (-1, -1), 0.3, C_DIVIDER),
+                    ("TOPPADDING", (0, 0), (-1, -1), 5),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
+        story.append(tbl)
+        story.append(Spacer(1, 8))
+
     story.append(HRFlowable(width="100%", thickness=0.5, color=C_DIVIDER, spaceAfter=4))
 
+    # Content sections
     for section in jd.sections:
+        heading = section["heading"]
         paragraphs = section.get("paragraphs", [])
         bullets = section.get("bullets", [])
+
         if not paragraphs and not bullets:
             continue
+
+        story.append(Spacer(1, 4))
         accent_hex = C_ACCENT.hexval()[2:]
         story.append(
             Paragraph(
-                f'<font color="#{accent_hex}">|</font>&nbsp;&nbsp;{_safe_xml(section["heading"])}',
+                f'<font color="#{accent_hex}">|</font>&nbsp;&nbsp;{_safe(heading)}',
                 styles["SectionHeading"],
             )
         )
-        for p in paragraphs:
-            story.append(Paragraph(_safe_xml(p), styles["Body"]))
-        for b in bullets:
-            story.append(Paragraph(f"\u2022  {_safe_xml(b)}", styles["Bullet"]))
 
+        for p in paragraphs:
+            if "<b>" in p:
+                story.append(Paragraph(p, styles["BodyBold"]))
+            else:
+                story.append(Paragraph(_safe(p), styles["Body"]))
+
+        for b in bullets:
+            if b.startswith("    "):
+                story.append(
+                    Paragraph(f"\u2013  {_safe(b.strip())}", styles["SubBullet"])
+                )
+            else:
+                story.append(Paragraph(f"\u2022  {_safe(b)}", styles["Bullet"]))
+
+    # Footer
     story.append(Spacer(1, 20))
     story.append(
         HRFlowable(
@@ -394,11 +518,13 @@ def generate_job_pdf(jd: JobDescription, output_path: str) -> str:
     )
     story.append(
         Paragraph(
-            f"Source: {_safe_xml(jd.url)}  |  Scraped: {jd.scraped_date}  |  Si2 Technologies  |  Confidential",
+            f"Source: {_safe(jd.url)}  |  Scraped: {jd.scraped_date}  "
+            f"|  Si2 Technologies  |  Confidential",
             styles["Footer"],
         )
     )
 
+    # Build PDF
     doc = SimpleDocTemplate(
         output_path,
         pagesize=A4,
@@ -410,6 +536,7 @@ def generate_job_pdf(jd: JobDescription, output_path: str) -> str:
         author="Si2 Technologies - JD Pipeline",
     )
     doc.build(story)
+    logger.info("  Generated PDF: %s (%d sections)", output_path, len(jd.sections))
     return output_path
 
 
@@ -450,7 +577,7 @@ def run_jd_pipeline(auth: GraphAuthProvider) -> dict:
         safe_slug = re.sub(r"[^\w\-]", "", slug)
         pdf_filename = f"JD_{safe_slug}.pdf"
         txt_filename = f"JD_{safe_slug}.txt"
-        txt_remote = f"{Config.SHAREPOINT_TEXT_JD_FOLDER.strip('/')}/{txt_filename}"
+        txt_remote = f"{Config.SHAREPOINT_JOBS_FOLDER.strip('/')}/{txt_filename}"
 
         if sp.jd_pdf_exists(pdf_filename):
             results["skipped"] += 1
