@@ -48,8 +48,6 @@ def api_sp_last_sync():
     return jsonify({"last_sync": ts})
 
 
-
-
 @api_sharepoint_bp.route("/api/sp/files")
 @login_required
 def api_sp_files():

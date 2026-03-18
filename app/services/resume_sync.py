@@ -58,7 +58,6 @@ try:
 except ImportError:
     HAS_DOCX = False
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 #  EMAIL FETCHER
 # ══════════════════════════════════════════════════════════════════════════════
@@ -68,6 +67,9 @@ class EmailFetcher:
     def __init__(self, headers: dict):
         self.headers = headers
         self.base = "https://graph.microsoft.com/v1.0"
+        # OPTIMIZATION: Implement requests Session to reuse TCP connections
+        self.session = requests.Session()
+        self.session.headers.update(headers)
 
     def fetch_recent_emails(self) -> list:
         since = (
@@ -81,11 +83,12 @@ class EmailFetcher:
         )
         all_msgs = []
         while url:
-            resp = requests.get(url, headers=self.headers, timeout=30)
+            resp = self.session.get(url, timeout=30)
             resp.raise_for_status()
             data = resp.json()
             all_msgs.extend(data.get("value", []))
             url = data.get("@odata.nextLink")
+
         keywords = Config.RESUME_SUBJECT_KEYWORDS
         relevant = [
             m
@@ -102,7 +105,7 @@ class EmailFetcher:
             f"{self.base}/users/{Config.MAILBOX_USER}"
             f"/messages/{email_id}/attachments/{attachment_id}/$value"
         )
-        resp = requests.get(url, headers=self.headers, timeout=60)
+        resp = self.session.get(url, timeout=60)
         resp.raise_for_status()
         return resp.content
 
@@ -111,7 +114,7 @@ class EmailFetcher:
             f"{self.base}/users/{Config.MAILBOX_USER}"
             f"/messages/{email_id}/attachments?$select=id,name,contentType"
         )
-        resp = requests.get(url, headers=self.headers, timeout=30)
+        resp = self.session.get(url, timeout=30)
         resp.raise_for_status()
         return resp.json().get("value", [])
 
@@ -121,15 +124,18 @@ class EmailFetcher:
             msg.get("body", {}).get("content", ""), "html.parser"
         ).get_text(separator="\n")
         received_dt = msg.get("receivedDateTime", "")
+
         candidate = CandidateInfo(
             source_email_id=msg["id"],
             source_subject=subject,
             received_datetime=received_dt,
         )
+
         subj_match = SUBJECT_PATTERN.search(subject)
         if subj_match:
             candidate.job_role = subj_match.group(1).strip()
             candidate.job_id = subj_match.group(2).strip()
+
         for line in body_text.splitlines():
             line = line.strip()
             if not line:
@@ -154,6 +160,7 @@ class EmailFetcher:
                         candidate.job_role = value[: bracket.start()].strip()
                     else:
                         candidate.job_role = candidate.job_role or value
+
         if not candidate.resume_url and msg.get("hasAttachments"):
             atts = self.get_attachments_metadata(msg["id"])
             valid_ext = (".pdf", ".docx", ".doc")
@@ -168,6 +175,7 @@ class EmailFetcher:
                 if a.get("name", "").lower().endswith(valid_ext)
                 or any(ct in a.get("contentType", "").lower() for ct in valid_mime)
             ]
+
         if not candidate.name:
             sender = msg.get("from", {}).get("emailAddress", {}).get("name", "")
             candidate.name = sender.title() if sender else "Unknown"
@@ -175,6 +183,7 @@ class EmailFetcher:
             candidate.email = (
                 msg.get("from", {}).get("emailAddress", {}).get("address", "")
             )
+
         return candidate
 
 
@@ -237,6 +246,7 @@ def extract_raw_text(local_path: Path) -> str:
         text = extract_text_from_docx(str(local_path))
     else:
         return ""
+
     if suffix == ".pdf" and (not text or len(text.strip()) < 10):
         ocr = extract_text_with_ocr(str(local_path))
         if ocr and len(ocr.strip()) >= 10:
@@ -259,14 +269,17 @@ def _download_resume_from_url(url: str, dest_base: str):
             ext = ".docx"
         elif ".docx" in url.lower():
             ext = ".docx"
+
         tmp = dest_base + ext
         with open(tmp, "wb") as f:
             for chunk in resp.iter_content(chunk_size=8192):
                 f.write(chunk)
+
         with open(tmp, "rb") as f:
             header = f.read(4)
         if header.startswith(b"PK"):
             ext = ".docx"
+
         final = dest_base + ext
         if tmp != final:
             os.rename(tmp, final)
@@ -280,16 +293,18 @@ def _download_resume_from_url(url: str, dest_base: str):
 #  PIPELINE 1 — Email Fetch & Resume Upload
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def run_email_fetch_pipeline(auth: GraphAuthProvider) -> dict:
     logger.info("=== PIPELINE 1: EMAIL FETCH & RESUME UPLOAD ===")
     headers = auth.get_headers()
     fetcher = EmailFetcher(headers)
     candidates = fetcher.fetch_recent_emails()
+
     if not candidates:
         logger.info("No new application emails found.")
         return {"success": 0, "failed": 0, "skipped": 0}
 
-    seen: set = set()
+    seen = set()
     unique = []
     for c in candidates:
         key = (c.email.lower(), c.job_id)
@@ -299,95 +314,114 @@ def run_email_fetch_pipeline(auth: GraphAuthProvider) -> dict:
 
     os.makedirs(Config.SYNC_TEMP_RESUMES_DIR, exist_ok=True)
     sp = SyncSharePointManager(headers)
-
-    base_folder = Config.SHAREPOINT_BASE_FOLDER.strip("/")
+    base_folder = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
     drive_id = sp._get_drive_id()
     sp._ensure_folder(drive_id, base_folder)
 
     results = {"success": 0, "failed": 0, "skipped": 0}
-    for candidate in unique:
-        subfolder = f"{candidate.safe_job_id}_{candidate.safe_job_role}"
+    candidates_by_folder = {}
+
+    for c in unique:
+        subfolder = f"{c.safe_job_id}_{c.safe_job_role}"
+        candidates_by_folder.setdefault(subfolder, []).append(c)
+
+    for subfolder, folder_candidates in candidates_by_folder.items():
         full_sp_folder = f"{base_folder}/{subfolder}"
-        
-        # ── EFFICIENCY UPDATE: Check if already processed BEFORE downloading ──
-        already_processed = False
-        exts_to_check = [".pdf", ".docx", ".doc"]
-        if candidate.attachments:
-            _, att_ext = os.path.splitext(candidate.attachments[0]["name"])
-            if att_ext:
-                exts_to_check = [att_ext.lower()]
 
-        for check_ext in exts_to_check:
-            temp_filename = f"{candidate.safe_name}_{candidate.safe_job_id}{check_ext}"
-            existing = sp.get_file_metadata(full_sp_folder, temp_filename)
-            if existing and existing.get("SourceEmailID") == candidate.source_email_id:
-                logger.info("Already processed email for %s. Skipping without downloading.", candidate.name)
-                already_processed = True
-                break
-        
-        if already_processed:
-            results["skipped"] += 1
-            continue
-        # ──────────────────────────────────────────────────────────────────────
-
-        local_base = _unique_base_path(Config.SYNC_TEMP_RESUMES_DIR, candidate)
-        downloaded, local_path, ext = False, "", ".pdf"
-
-        if candidate.resume_url:
-            downloaded, local_path, ext = _download_resume_from_url(
-                candidate.resume_url, local_base
-            )
-
-        if not downloaded and candidate.attachments:
-            att = candidate.attachments[0]
-            _, att_ext = os.path.splitext(att["name"])
-            ext = att_ext.lower() or ".pdf"
-            local_path = local_base + ext
-            try:
-                content = fetcher.get_attachment_content(
-                    candidate.source_email_id, att["id"]
-                )
-                with open(local_path, "wb") as f:
-                    f.write(content)
-                downloaded = True
-            except Exception as e:
-                logger.error("Attachment download failed: %s", e)
-
-        if not downloaded:
-            results["skipped"] += 1
-            continue
-
-        target_filename = f"{candidate.safe_name}_{candidate.safe_job_id}{ext}"
-        
-        # Fallback check in case the extension changed dynamically during URL download
-        existing = sp.get_file_metadata(full_sp_folder, target_filename)
-        if existing and existing.get("SourceEmailID") == candidate.source_email_id:
-            logger.info("Already processed email for %s. Skipping.", candidate.name)
-            results["skipped"] += 1
-            if local_path and os.path.exists(local_path):
-                os.remove(local_path)
-            continue
-
-        metadata = {
-            "CandidateName": candidate.name,
-            "CandidateEmail": candidate.email,
-            "CandidatePhone": candidate.phone,
-            "JobID": candidate.job_id,
-            "JobRole": candidate.job_role,
-            "SourceEmailID": candidate.source_email_id,
-        }
         try:
-            sp.upload_resume(local_path, target_filename, subfolder, metadata)
-            results["success"] += 1
-        except Exception as e:
-            results["failed"] += 1
-            logger.error("Upload failed for %s: %s", candidate.name, e)
+            existing_folder_files = sp.get_folder_files_metadata(full_sp_folder)
+        except AttributeError:
+            existing_folder_files = None
 
-        if local_path and os.path.exists(local_path):
+        for candidate in folder_candidates:
+            local_base = _unique_base_path(Config.SYNC_TEMP_RESUMES_DIR, candidate)
+            exts_to_check = [".pdf", ".docx", ".doc"]
+
+            if candidate.attachments:
+                _, att_ext = os.path.splitext(candidate.attachments[0]["name"])
+                if att_ext:
+                    exts_to_check = [att_ext.lower()]
+
+            already_processed = False
+            for check_ext in exts_to_check:
+                temp_filename = (
+                    f"{candidate.safe_name}_{candidate.safe_job_id}{check_ext}"
+                )
+                if existing_folder_files is not None:
+                    if (
+                        temp_filename in existing_folder_files
+                        and existing_folder_files[temp_filename]
+                        == candidate.source_email_id
+                    ):
+                        already_processed = True
+                        break
+                else:
+                    existing = sp.get_file_metadata(full_sp_folder, temp_filename)
+                    if (
+                        existing
+                        and existing.get("SourceEmailID") == candidate.source_email_id
+                    ):
+                        already_processed = True
+                        break
+
+            if already_processed:
+                logger.info(
+                    "Already processed email for %s. Skipping without downloading.",
+                    candidate.name,
+                )
+                results["skipped"] += 1
+                continue
+
+            downloaded, local_path, ext = False, "", ".pdf"
+
+            if candidate.resume_url:
+                downloaded, local_path, ext = _download_resume_from_url(
+                    candidate.resume_url, local_base
+                )
+
+            if not downloaded and candidate.attachments:
+                att = candidate.attachments[0]
+                _, att_ext = os.path.splitext(att["name"])
+                ext = att_ext.lower() or ".pdf"
+                local_path = local_base + ext
+                try:
+                    content = fetcher.get_attachment_content(
+                        candidate.source_email_id, att["id"]
+                    )
+                    with open(local_path, "wb") as f:
+                        f.write(content)
+                    downloaded = True
+                except Exception as e:
+                    logger.error("Attachment download failed: %s", e)
+
+            if not downloaded:
+                results["skipped"] += 1
+                continue
+
+            target_filename = f"{candidate.safe_name}_{candidate.safe_job_id}{ext}"
+            metadata = {
+                "CandidateName": candidate.name,
+                "CandidateEmail": candidate.email,
+                "CandidatePhone": candidate.phone,
+                "JobID": candidate.job_id,
+                "JobRole": candidate.job_role,
+                "SourceEmailID": candidate.source_email_id,
+            }
+
             try:
-                os.remove(local_path)
-            except OSError:
-                pass
+                sp.upload_resume(local_path, target_filename, subfolder, metadata)
+                results["success"] += 1
+                if existing_folder_files is not None:
+                    existing_folder_files[target_filename] = candidate.source_email_id
+            except Exception as e:
+                results["failed"] += 1
+                logger.error("Upload failed for %s: %s", candidate.name, e)
+            finally:
+                if local_path and os.path.exists(local_path):
+                    try:
+                        os.remove(local_path)
+                    except OSError:
+                        pass
 
     logger.info(
         "Pipeline 1 done. Uploaded: %d | Skipped: %d | Failed: %d",
@@ -396,6 +430,7 @@ def run_email_fetch_pipeline(auth: GraphAuthProvider) -> dict:
         results["failed"],
     )
     return results
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  PIPELINE 2 — Text Extraction & Upload (with corrupted file handling)
@@ -409,25 +444,37 @@ def run_text_extraction_pipeline(auth: GraphAuthProvider) -> dict:
     tmp_dir = Path(Config.SYNC_TEMP_RESUMES_DIR) / "text_extraction"
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    base_folder = Config.SHAREPOINT_BASE_FOLDER
-    text_folder = Config.SHAREPOINT_TEXT_RESUMES_FOLDER
+    base_folder = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
     folders = sp.list_subfolders(base_folder)
 
     total_uploaded, total_skipped, total_failed = 0, 0, 0
 
     for folder in sorted(folders, key=lambda f: f["name"]):
-        role_name = folder["name"]
-        folder_path = f"{base_folder}/{role_name}"
-        resumes = sp.list_files(folder_path, extensions=(".pdf", ".docx", ".doc"))
-        if not resumes:
+        folder_path = f"{base_folder}/{folder['name']}"
+
+        # OPTIMIZATION: Retrieve all files once to avoid O(N) calls for .txt existence
+        all_items = sp.list_files(
+            folder_path
+        )  # Pass without extensions to grab everything
+        if not all_items:
             continue
+
+        resumes = []
+        existing_txts = set()
+
+        for item in all_items:
+            fname_lower = item["name"].lower()
+            if fname_lower.endswith((".pdf", ".docx", ".doc")):
+                resumes.append(item)
+            elif fname_lower.endswith(".txt"):
+                existing_txts.add(fname_lower)
 
         for res in resumes:
             fname = res["name"]
             txt_filename = Path(fname).stem + ".txt"
-            remote_txt_path = f"{text_folder}/{role_name}/{txt_filename}"
 
-            if sp.file_exists(remote_txt_path):
+            # O(1) Memory check instead of HTTP network lookup
+            if txt_filename.lower() in existing_txts:
                 total_skipped += 1
                 continue
 
@@ -449,27 +496,26 @@ def run_text_extraction_pipeline(auth: GraphAuthProvider) -> dict:
                 text = extract_raw_text(local_resume_path)
 
                 if not text or len(text.strip()) < 10:
-                    # Corrupted: set MatchScore = -1 on SharePoint
                     logger.warning(
                         "Corrupted file detected: %s. Setting MatchScore=-1.", fname
                     )
-                    item = sp.find_item_by_path(f"{folder_path}/{fname}")
-                    if item:
-                        sp.update_match_score(item["id"], -1)
+                    # OPTIMIZATION: Re-use cached item ID instead of Graph API search
+                    sp.update_match_score(res["id"], -1)
                     total_failed += 1
                 else:
                     local_txt_path.write_text(text, encoding="utf-8")
-                    if sp.upload_text_file(local_txt_path, remote_txt_path):
+                    if sp.upload_text_file(
+                        local_txt_path, f"{folder_path}/{txt_filename}"
+                    ):
                         total_uploaded += 1
                     else:
                         total_skipped += 1
 
-                local_resume_path.unlink(missing_ok=True)
-                local_txt_path.unlink(missing_ok=True)
-
             except Exception as e:
                 logger.error("Failed for %s: %s", fname, e)
                 total_failed += 1
+            finally:
+                # OPTIMIZATION: Ensure rigid disk cleanup regardless of exceptions
                 local_resume_path.unlink(missing_ok=True)
                 local_txt_path.unlink(missing_ok=True)
 

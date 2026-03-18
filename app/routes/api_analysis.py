@@ -1,5 +1,6 @@
 # app/routes/api_analysis.py — API endpoints for single and bulk AI resume screening using Gemini.
 
+import os
 import json
 import time
 import threading
@@ -68,85 +69,6 @@ def api_progress():
     return Response(generate(), mimetype="text/event-stream")
 
 
-@api_analysis_bp.route("/api/analyze", methods=["POST"])
-@login_required
-def api_analyze():
-    """Run AI analysis on a single resume + JD."""
-    uid = current_user.id
-    set_progress(uid, 10, "Reading content...")
-
-    jd_title = request.form.get("jd_title")
-    jd_text = request.form.get("jd_text")
-    resume_text = request.form.get("resume_text")
-    resume_filename = request.form.get("resume_filename")
-    sync_sp = request.form.get("sync_sharepoint") == "on"
-
-    if not all([jd_title, jd_text, resume_text, resume_filename]):
-        set_progress(uid, 100, "Error: Missing required fields")
-        return jsonify({"error": "Missing required fields (JD or Resume content)"}), 400
-
-    try:
-        set_progress(uid, 30, "Applying AI logic...")
-
-        # 1. AI Analysis
-        analysis_dict = evaluate_resume(resume_text, jd_text)
-
-        set_progress(uid, 70, "Saving to database...")
-
-        # Extract variables for DB and SP
-        score = analysis_dict.get("function_1_resume_jd_matching", {}).get(
-            "overall_match_score", 0
-        )
-        extraction = analysis_dict.get("function_2_resume_data_extraction", {})
-        personal = extraction.get("personal_information", {})
-
-        try:
-            job_code = extract_job_code(jd_title)
-        except ValueError:
-            job_code = 0
-
-        upsert_job(
-            job_id=job_code, jd_filename=jd_title, role_name=jd_title, jd_text=jd_text
-        )
-
-        # 2. Save to Postgres
-        cid = save_candidate(
-            job_id=job_code,
-            result=analysis_dict,
-            resume_filename=resume_filename,
-        )
-
-        analysis_dict["candidate_db_id"] = cid
-
-        # 3. Sync to SharePoint (Background)
-        if sync_sp:
-            set_progress(uid, 90, "Syncing to SharePoint...")
-            metadata = {
-                "MatchScore": score,
-                "CandidateName": personal.get("full_name", "Unknown"),
-                "CandidateEmail": personal.get("email", ""),
-                "CandidatePhone": personal.get("phone", ""),
-                "JobID": str(job_code) if job_code else "Unknown",
-                "JobRole": jd_title,
-            }
-
-            # Pass the proxy object's underlying app to the thread
-            app = current_app._get_current_object()
-            threading.Thread(
-                target=_background_sp_push,
-                args=(app, resume_filename, metadata, jd_title),
-                daemon=True,
-            ).start()
-
-        set_progress(uid, 100, "Analysis Complete!")
-        return jsonify(analysis_dict), 200
-
-    except Exception as e:
-        traceback.print_exc()
-        set_progress(uid, 100, f"Error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-
 @api_analysis_bp.route("/api/analyze/bulk", methods=["POST"])
 @login_required
 def api_analyze_bulk():
@@ -205,7 +127,12 @@ def api_analyze_bulk():
 
             # 2. Loop Resumes
             for idx, resume_info in enumerate(to_process, 1):
-                resume_id = resume_info["id"]
+                pdf_item_id = resume_info[
+                    "id"
+                ]  # <-- The PDF ID (for SharePoint updates)
+                txt_item_id = resume_info.get(
+                    "txt_id"
+                )  # <-- The TXT ID (for LLM reading)
                 resume_name = resume_info["name"]
                 is_rescore = resume_info.get("_is_rescore", False)
                 previous_score = resume_info.get("previous_score", None)
@@ -213,8 +140,14 @@ def api_analyze_bulk():
 
                 yield f"data: {json.dumps({'type': 'progress', 'current': idx, 'total': total, 'resume_name': resume_name})}\n\n"
 
+                # Check if the text file is missing before pinging the AI
+                if not txt_item_id:
+                    yield f"data: {json.dumps({'type': 'error_item', 'current': idx, 'total': total, 'resume_name': resume_name, 'error': 'No corresponding .txt file found. Please run the text extraction pipeline first.'})}\n\n"
+                    continue
+
                 try:
-                    resume_text = sp.download_text_content(resume_id)
+                    # 1. Download the TEXT file content to pass to the LLM
+                    resume_text = sp.download_text_content(txt_item_id)
 
                     # AI Analysis — pass human feedback for rescores
                     analysis_dict = evaluate_resume(
@@ -239,7 +172,7 @@ def api_analyze_bulk():
                         resume_filename=resume_name,
                     )
 
-                    # Sync to SP (Background) — skip for rescores; user picks final score first
+                    # 2. Sync to SP (Background) — Update the PDF file metadata
                     if sync_sp and not is_rescore:
                         sp_metadata = {
                             "MatchScore": score,
@@ -251,7 +184,13 @@ def api_analyze_bulk():
                         }
                         threading.Thread(
                             target=_background_sp_push,
-                            args=(app, resume_name, sp_metadata, jd_title, resume_id),
+                            args=(
+                                app,
+                                resume_name,
+                                sp_metadata,
+                                jd_title,
+                                pdf_item_id,
+                            ),  # <-- Uses pdf_item_id here
                             daemon=True,
                         ).start()
 
@@ -262,13 +201,13 @@ def api_analyze_bulk():
                         "email": personal.get("email", ""),
                         "score": score,
                         "resume_filename": resume_name,
-                        "resume_id": resume_id,
+                        "resume_id": pdf_item_id,  # <-- Send back the PDF ID to the UI
                         "experience": extraction.get("career_metrics", {}).get(
                             "total_experience_in_years", 0
                         ),
-                        "current_title": extraction.get(
-                            "current_employment", {}
-                        ).get("current_job_title", ""),
+                        "current_title": extraction.get("current_employment", {}).get(
+                            "current_job_title", ""
+                        ),
                         "match_details": {
                             k: {
                                 "status": analysis_dict.get(

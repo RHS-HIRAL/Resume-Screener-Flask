@@ -2,6 +2,7 @@
 
 import re
 import io
+import os
 import requests
 import msal
 import pandas as pd
@@ -115,33 +116,54 @@ class SharePointMatchScoreUpdater:
         """
         3. Concurrent Folder Browsing: Return ALL role subfolders and their resume files.
         Fetches subfolder contents in parallel, drastically reducing load times.
+        Excludes JD files (prefixed with 'JD_') from the resume lists.
+        Filters to return ONLY PDF files, but attaches the corresponding .txt file ID for LLM scoring.
         """
         subfolders = [
             item
-            for item in self._list_folder_children(Config.SHAREPOINT_BASE_FOLDER)
+            for item in self._list_folder_children(Config.SHAREPOINT_JOBS_FOLDER)
             if "folder" in item
         ]
         groups = {}
 
         def fetch_folder_contents(sf):
-            sf_path = f"{Config.SHAREPOINT_BASE_FOLDER}/{sf['name']}"
+            sf_path = f"{Config.SHAREPOINT_JOBS_FOLDER}/{sf['name']}"
             children = self._list_folder_children(sf_path, include_fields=True)
+
+            # 1. Build a map of base filenames to their .txt file IDs
+            txt_map = {}
+            for f in children:
+                if "file" in f and f["name"].lower().endswith(".txt"):
+                    base_name = os.path.splitext(f["name"])[0].lower()
+                    txt_map[base_name] = f["id"]
+
             files = []
             for f in children:
                 if "file" not in f:
                     continue
-                name_lower = f["name"].lower()
-                if not (
-                    name_lower.endswith(".txt")
-                    or name_lower.endswith(".pdf")
-                    or name_lower.endswith(".docx")
-                ):
+                name = f["name"]
+                name_lower = name.lower()
+                # Skip JD files
+                if name_lower.startswith("jd_"):
                     continue
+                # 2. ONLY list PDF files
+                if not name_lower.endswith(".pdf"):
+                    continue
+                base_name = os.path.splitext(name)[0].lower()
 
                 fields = (f.get("listItem") or {}).get("fields", {})
                 match_score = fields.get("MatchScore") or 0
+
+                # 3. Combine the PDF data with the corresponding TXT id
                 files.append(
-                    {"id": f["id"], "name": f["name"], "match_score": match_score}
+                    {
+                        "id": f["id"],  # PDF ID -> Use this to update MatchScore
+                        "name": name,  # PDF Name -> Show this in the UI
+                        "match_score": match_score,
+                        "txt_id": txt_map.get(
+                            base_name
+                        ),  # TXT ID -> Use this to download text for LLM
+                    }
                 )
             return sf["name"], files
 
@@ -155,12 +177,32 @@ class SharePointMatchScoreUpdater:
         return groups
 
     def list_jd_files(self) -> list[dict]:
-        items = self._list_folder_children(Config.SHAREPOINT_JD_FOLDER)
-        return [
-            {"id": f["id"], "name": f["name"]}
-            for f in items
-            if "file" in f and f["name"].lower().endswith((".txt", ".pdf", ".docx"))
+        """List all JD files (prefixed with 'JD_') across all role subfolders."""
+        subfolders = [
+            item
+            for item in self._list_folder_children(Config.SHAREPOINT_JOBS_FOLDER)
+            if "folder" in item
         ]
+        all_jds = []
+
+        def fetch_jds(sf):
+            sf_path = f"{Config.SHAREPOINT_JOBS_FOLDER}/{sf['name']}"
+            children = self._list_folder_children(sf_path)
+            jds = []
+            for f in children:
+                if "file" not in f:
+                    continue
+                name_lower = f["name"].lower()
+                if name_lower.startswith("jd_") and name_lower.endswith(".txt"):
+                    jds.append({"id": f["id"], "name": f["name"]})
+            return jds
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(fetch_jds, sf) for sf in subfolders]
+            for future in concurrent.futures.as_completed(futures):
+                all_jds.extend(future.result())
+
+        return all_jds
 
     def download_text_content(self, item_id: str) -> str:
         drive_id = self._get_drive_id()
@@ -188,11 +230,12 @@ class SharePointMatchScoreUpdater:
         else:
             return content.decode("utf-8", errors="replace")
 
+    # Check if unused function
     def find_txt_version(self, folder_name: str, original_filename: str) -> dict | None:
-        """Find the corresponding .txt file in the Text Files/Resumes/{folder_name} directory."""
+        """Find the corresponding .txt file in the same job-role folder."""
         from pathlib import Path
 
-        txt_folder_path = f"{Config.SHAREPOINT_TEXT_RESUMES_FOLDER}/{folder_name}"
+        txt_folder_path = f"{Config.SHAREPOINT_JOBS_FOLDER}/{folder_name}"
         stem = Path(original_filename).stem
         target_name = f"{stem}.txt".lower()
 
@@ -276,7 +319,9 @@ class SharePointMatchScoreUpdater:
             get_url = f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item_id}?$expand=listItem($expand=fields)"
             get_resp = self.session.get(get_url, headers=headers, timeout=30)
             if get_resp.ok:
-                existing_fields = (get_resp.json().get("listItem") or {}).get("fields", {})
+                existing_fields = (get_resp.json().get("listItem") or {}).get(
+                    "fields", {}
+                )
         except Exception as e:
             print(f"[SP] Could not fetch existing fields for {filename}: {e}")
 
@@ -285,7 +330,7 @@ class SharePointMatchScoreUpdater:
         for key, value in metadata.items():
             # If overwrite is true, or we don't have existing fields, or the field is "MatchScore" (which we purposefully update on bulk), or existing field is empty/Unknown
             if (
-                overwrite 
+                overwrite
                 or key == "MatchScore"
                 or not existing_fields.get(key)
                 or existing_fields.get(key) == "Unknown"
@@ -297,9 +342,7 @@ class SharePointMatchScoreUpdater:
             return ("OK", f"No new metadata to patch for `{filename}`.", [])
 
         url = f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item_id}/listItem/fields"
-        resp = self.session.patch(
-            url, headers=headers, json=final_metadata, timeout=30
-        )
+        resp = self.session.patch(url, headers=headers, json=final_metadata, timeout=30)
         if resp.status_code == 200:
             return ("OK", f"Metadata updated successfully for `{filename}`.", [])
         return ("ERROR", f"SharePoint Error {resp.status_code}: {resp.text[:200]}", [])

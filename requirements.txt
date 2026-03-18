@@ -33,3 +33,6 @@ pydantic[email]>=2.0.0       # [email] extra enables EmailStr validator
 
 # ── Security ──────────────────────────────────────────────────────────────────
 Werkzeug>=3.0.0              # Password hashing (generate_password_hash / check_password_hash)
+
+# PDF Generation
+reportlab
