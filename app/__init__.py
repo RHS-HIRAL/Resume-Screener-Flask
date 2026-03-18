@@ -51,6 +51,7 @@ def create_app() -> Flask:
     from app.routes.api_candidates import api_candidates_bp
     from app.routes.api_sharepoint import api_sharepoint_bp
     from app.routes.api_qa import api_qa_bp
+    from app.routes.api_upload import api_upload_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(views_bp)
@@ -58,5 +59,6 @@ def create_app() -> Flask:
     app.register_blueprint(api_candidates_bp)
     app.register_blueprint(api_sharepoint_bp)
     app.register_blueprint(api_qa_bp)
+    app.register_blueprint(api_upload_bp)
 
     return app

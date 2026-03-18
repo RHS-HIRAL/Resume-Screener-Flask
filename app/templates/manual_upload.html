@@ -1,0 +1,254 @@
+{% extends 'base.html' %}
+{% block title %}Manual Resume Upload{% endblock %}
+
+{% block content %}
+<div class="dashboard-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <h1>Manual Resume Upload</h1>
+    <button id="refreshSpBtn" class="btn btn-secondary" style="background: var(--surface-card); color: var(--text-main); border: 1px solid var(--border-light);">
+        <i class="fa-solid fa-arrows-rotate"></i> Refresh SharePoint
+    </button>
+</div>
+
+<div class="card" style="padding: 1.5rem; margin-bottom: 2rem;">
+    <div style="display: flex; gap: 1.5rem; align-items: flex-end; flex-wrap: wrap;">
+        <div class="form-group" style="flex: 1; min-width: 250px; margin-bottom: 0;">
+            <label for="resumeFiles" style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">Select Resumes (PDF/DOCX)</label>
+            <input type="file" id="resumeFiles" class="form-control" multiple accept=".pdf,.docx" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-light); border-radius: 8px;">
+        </div>
+        <div class="form-group" style="flex: 1; min-width: 250px; margin-bottom: 0;">
+            <label for="subfolderSelect" style="font-weight: 600; font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;">Target Subfolder</label>
+            <select id="subfolderSelect" class="form-control" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-light); border-radius: 8px; background: var(--bg-main);">
+                <option value="">Loading subfolders...</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<div class="card" id="tableContainer" style="display: none; padding: 1.5rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+        <h3 style="margin: 0; font-size: 1.25rem;">Selected Files</h3>
+        <div style="display: flex; align-items: center; gap: 1rem; background: var(--bg-main); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-light);">
+            <label for="globalSource" style="font-weight: 600; font-size: 0.9rem; margin: 0;">Global Source:</label>
+            <select id="globalSource" class="form-control" style="padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-light);">
+                 <option value="">-- Select --</option>
+                 <option value="LinkedIn">LinkedIn</option>
+                 <option value="Naukri">Naukri</option>
+                 <option value="Referral">Referral</option>
+                 <option value="Other">Other</option>
+            </select>
+            <button id="applyGlobalBtn" class="btn" style="background: var(--accent-indigo); color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 500; border: none; cursor: pointer;">Apply</button>
+        </div>
+    </div>
+    
+    <div class="table-container" style="overflow-x: auto;">
+        <table class="data-table" style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="border-bottom: 2px solid var(--border-light); text-align: left;">
+                    <th style="padding: 1rem; color: var(--text-muted);">File Name</th>
+                    <th style="padding: 1rem; color: var(--text-muted); width: 200px;">Source</th>
+                    <th style="padding: 1rem; color: var(--text-muted); width: 100px; text-align: center;">Action</th>
+                </tr>
+            </thead>
+            <tbody id="fileTableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <div style="margin-top: 2rem; display: flex; justify-content: flex-end;">
+        <button id="uploadBtn" class="btn" style="background: var(--accent-indigo); color: white; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 1rem; border: none; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Upload to SharePoint
+        </button>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const refreshSpBtn = document.getElementById("refreshSpBtn");
+    const subfolderSelect = document.getElementById("subfolderSelect");
+    const resumeFilesInput = document.getElementById("resumeFiles");
+    const tableContainer = document.getElementById("tableContainer");
+    const fileTableBody = document.getElementById("fileTableBody");
+    const globalSource = document.getElementById("globalSource");
+    const applyGlobalBtn = document.getElementById("applyGlobalBtn");
+    const uploadBtn = document.getElementById("uploadBtn");
+
+    const sourceOptions = `
+        <option value="">-- Select --</option>
+        <option value="LinkedIn">LinkedIn</option>
+        <option value="Naukri">Naukri</option>
+        <option value="Referral">Referral</option>
+        <option value="Other">Other</option>
+    `;
+
+    let selectedFiles = []; // Store File objects
+
+    // Fetch Subfolders
+    async function fetchSubfolders() {
+        refreshSpBtn.disabled = true;
+        refreshSpBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing...';
+        subfolderSelect.innerHTML = '<option value="">Loading subfolders...</option>';
+        
+        try {
+            const res = await fetch("/api/upload/subfolders");
+            if (!res.ok) throw new Error("Failed to fetch folders");
+            const data = await res.json();
+            
+            subfolderSelect.innerHTML = '<option value="">-- Select a Subfolder --</option>';
+            data.folders.forEach(folder => {
+                const opt = document.createElement("option");
+                opt.value = folder.name;
+                opt.textContent = folder.name;
+                subfolderSelect.appendChild(opt);
+            });
+        } catch (err) {
+            console.error(err);
+            subfolderSelect.innerHTML = '<option value="">Error loading folders</option>';
+            alert("Error loading SharePoint folders. Please try again.");
+        } finally {
+            refreshSpBtn.disabled = false;
+            refreshSpBtn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Refresh SharePoint';
+        }
+    }
+
+    fetchSubfolders();
+    refreshSpBtn.addEventListener("click", fetchSubfolders);
+
+    // Handle File Selection
+    resumeFilesInput.addEventListener("change", (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length > 0) {
+            tableContainer.style.display = "block";
+            // Append new files without overwriting existing
+            files.forEach(file => {
+                // simple check to avoid duplicates by name
+                if (!selectedFiles.some(f => f.name === file.name)) {
+                    selectedFiles.push(file);
+                }
+            });
+            renderTable();
+        } else if (selectedFiles.length === 0) {
+            tableContainer.style.display = "none";
+        }
+    });
+
+    function renderTable() {
+        if (selectedFiles.length === 0) {
+            tableContainer.style.display = "none";
+            fileTableBody.innerHTML = "";
+            return;
+        }
+
+        fileTableBody.innerHTML = "";
+        selectedFiles.forEach((file, index) => {
+            const tr = document.createElement("tr");
+            tr.style.borderBottom = "1px solid var(--border-light)";
+            
+            tr.innerHTML = `
+                <td style="padding: 1rem; color: var(--text-main); font-weight: 500;">
+                    <i class="fa-solid ${file.name.endsWith('.pdf') ? 'fa-file-pdf' : 'fa-file-word'}" style="color: ${file.name.endsWith('.pdf') ? '#e25c5c' : '#4b88e3'}; margin-right: 0.5rem;"></i>
+                    ${file.name}
+                </td>
+                <td style="padding: 1rem;">
+                    <select class="form-control source-select" data-index="${index}" style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-light);">
+                        ${sourceOptions}
+                    </select>
+                </td>
+                <td style="padding: 1rem; text-align: center;">
+                    <button class="btn remove-btn" data-index="${index}" style="background: none; border: none; color: var(--accent-rose); cursor: pointer; font-size: 1.1rem;">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            fileTableBody.appendChild(tr);
+        });
+
+        // Add remove handlers
+        document.querySelectorAll(".remove-btn").forEach(btn => {
+            btn.addEventListener("click", (e) => {
+                const idx = parseInt(e.currentTarget.getAttribute("data-index"));
+                selectedFiles.splice(idx, 1);
+                // Clear the file input if everything is removed so change event triggers properly next time
+                if (selectedFiles.length === 0) resumeFilesInput.value = "";
+                renderTable();
+            });
+        });
+    }
+
+    // Global Source Apply
+    applyGlobalBtn.addEventListener("click", () => {
+        const globalVal = globalSource.value;
+        if (!globalVal) return;
+        document.querySelectorAll(".source-select").forEach(select => {
+            select.value = globalVal;
+        });
+    });
+
+    // Upload logic
+    uploadBtn.addEventListener("click", async () => {
+        if (selectedFiles.length === 0) {
+            alert("Please select at least one resume.");
+            return;
+        }
+        const targetFolder = subfolderSelect.value;
+        if (!targetFolder) {
+            alert("Please select a target subfolder.");
+            return;
+        }
+
+        // Collect sources
+        const sources = [];
+        let missingSource = false;
+        document.querySelectorAll(".source-select").forEach((select, i) => {
+            if (!select.value) missingSource = true;
+            sources.push(select.value);
+        });
+
+        if (missingSource) {
+            alert("Please select a source for all candidates.");
+            return;
+        }
+
+        // Prepare FormData
+        const formData = new FormData();
+        formData.append("target_folder", targetFolder);
+        selectedFiles.forEach((file, i) => {
+            formData.append("resumes", file);
+            formData.append(`source_${file.name}`, sources[i]);
+        });
+
+        uploadBtn.disabled = true;
+        const originalText = uploadBtn.innerHTML;
+        uploadBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Uploading...';
+
+        try {
+            const res = await fetch("/api/upload/manual", {
+                method: "POST",
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (res.ok && data.success) {
+                alert(`Upload Successful! \\nPassed: ${data.success_count} \\nCorrupted: ${data.corrupted_count}`);
+                // Clear UI
+                selectedFiles = [];
+                resumeFilesInput.value = "";
+                renderTable();
+                globalSource.value = "";
+            } else {
+                alert("Upload failed: " + (data.error || "Unknown error"));
+            }
+        } catch (err) {
+            console.error(err);
+            alert("An error occurred during upload.");
+        } finally {
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = originalText;
+        }
+    });
+
+});
+</script>
+{% endblock %}

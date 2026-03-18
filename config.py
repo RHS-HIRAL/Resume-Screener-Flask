@@ -56,6 +56,7 @@ class Config:
     SHAREPOINT_TEXT_JD_FOLDER = os.getenv(
         "SHAREPOINT_TEXT_JD_FOLDER", "Text Files/JobDescriptions"
     )
+    SHAREPOINT_JOBS_FOLDER = os.getenv("SHAREPOINT_JOBS_FOLDER", "Jobs")
     MAILBOX_USER = os.getenv("MAILBOX_USER", "")
 
     # Sync Pipeline Configuration

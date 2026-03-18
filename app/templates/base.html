@@ -36,9 +36,16 @@
             <nav class="nav-links">
                 <li class="nav-item">
                     <a href="{{ url_for('views.dashboard') }}"
-                        class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                        class="nav-link {% if request.endpoint == 'views.dashboard' or request.endpoint == 'dashboard' %}active{% endif %}">
                         <i class="fa-solid fa-house"></i>
                         <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('views.manual_upload') }}"
+                        class="nav-link {% if request.endpoint == 'views.manual_upload' or request.endpoint == 'manual_upload' %}active{% endif %}">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Manual Upload</span>
                     </a>
                 </li>
                 <li class="nav-item">
