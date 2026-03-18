@@ -1,5 +1,3 @@
-# App Structure:
-```
 resume_screener/
 │
 ├── .env                                     # Secret keys, DB creds, API keys
