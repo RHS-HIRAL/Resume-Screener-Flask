@@ -1,3 +1,5 @@
+# Application structure
+```
 resume_screener/
 │
 ├── .env                                     # Secret keys, DB creds, API keys
