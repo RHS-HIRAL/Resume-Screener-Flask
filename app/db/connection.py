@@ -105,8 +105,8 @@ def init_db() -> None:
             form_score INTEGER DEFAULT NULL,
             qa_score INTEGER DEFAULT NULL,
             rescore_feedback TEXT DEFAULT NULL,
-            source TEXT,
-        );
+            source TEXT
+            );
         """)
 
         # 4b. Add rescore_feedback column to existing databases (safe migration)
