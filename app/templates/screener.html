@@ -6,8 +6,7 @@
 <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-end;">
     <div>
         <h1 class="page-title">Bulk Resume Screening</h1>
-        <p class="page-subtitle">Select a Job Description and its corresponding Resume folder to start bulk analysis.
-        </p>
+        <p class="page-subtitle">Select a Job Description and its corresponding Resume folder to start bulk analysis.</p>
     </div>
     <button id="refreshSp" class="btn" style="background: rgba(255,255,255,0.05); color: var(--text-secondary);">
         <i class="fa-solid fa-arrows-rotate"></i> Refresh SharePoint
@@ -22,11 +21,8 @@
         </h2>
 
         <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
-            <!-- JD Selection -->
-            <div
-                style="padding: 1.2rem; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid var(--border-color);">
-                <div
-                    style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: var(--accent-amber); font-weight: 600;">
+            <div style="padding: 1.2rem; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: var(--accent-amber); font-weight: 600;">
                     <i class="fa-solid fa-clipboard-list"></i> 1. Select Job Description
                 </div>
                 <div class="form-group">
@@ -37,11 +33,8 @@
                 </div>
             </div>
 
-            <!-- Folder Selection -->
-            <div
-                style="padding: 1.2rem; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid var(--border-color);">
-                <div
-                    style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: var(--accent-emerald); font-weight: 600;">
+            <div style="padding: 1.2rem; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: var(--accent-emerald); font-weight: 600;">
                     <i class="fa-solid fa-folder-open"></i> 2. Select Resume Folder
                 </div>
                 <div class="form-group">
@@ -50,8 +43,7 @@
                         <option value="">— Select Folder —</option>
                     </select>
                 </div>
-                <div id="selectionStatus"
-                    style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem; display: none;"></div>
+                <div id="selectionStatus" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem; display: none;"></div>
             </div>
         </div>
 
@@ -62,41 +54,38 @@
                 <div style="font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">
                     <i class="fa-solid fa-rotate" style="color: var(--accent-rose);"></i> Rescore Mode
                 </div>
-                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.3rem;">Show already-screened
-                    candidates to select for re-analysis.</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.3rem;">Show already-screened candidates to select for re-analysis.</div>
             </div>
-            <label class="switch"
-                style="position: relative; display: inline-block; width: 48px; height: 24px; flex-shrink: 0;">
+            <label class="switch" style="position: relative; display: inline-block; width: 48px; height: 24px; flex-shrink: 0;">
                 <input type="checkbox" id="rescore_toggle" style="opacity: 0; width: 0; height: 0;">
-                <span class="slider"
-                    style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px;"></span>
+                <span class="slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px;"></span>
             </label>
         </div>
 
         <!-- Rescore Selection Table -->
         <div id="rescoreSection"
             style="display: none; margin-top: 1rem; padding: 1rem 1.5rem; background: rgba(244,63,94,0.03); border: 1px solid rgba(244,63,94,0.2); border-radius: 12px;">
-            <div style="font-weight: 700; font-size: 0.9rem; color: var(--accent-rose); margin-bottom: 1rem;">
+            <div style="font-weight: 700; font-size: 0.9rem; color: var(--accent-rose); margin-bottom: 0.5rem;">
                 <i class="fa-solid fa-list-check" style="margin-right: 0.5rem;"></i> Already Screened — Select to Re-analyze
             </div>
-            
+            <p style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                <i class="fa-solid fa-circle-info" style="color: var(--accent-indigo);"></i>
+                Feedback is <strong>required</strong> for every resume you select — it guides the AI re-evaluation and is saved with the final score.
+            </p>
             <div class="table-responsive" style="overflow-x: auto; padding-bottom: 0.5rem;">
                 <table style="width: 100%; min-width: 500px; border-collapse: separate; border-spacing: 0 8px; table-layout: fixed;">
                     <thead>
                         <tr style="color: var(--text-secondary); font-size: 0.8rem; font-weight: 700;">
                             <th style="width: 40px;"><i class="fa-solid fa-check"></i></th>
                             <th style="text-align: left; width: 35%;">Candidate File</th>
-                            <th style="text-align: left; width: 45%;">Feedback / Reason</th>
+                            <th style="text-align: left; width: 45%;">Feedback / Reason <span style="color: var(--accent-rose);">*</span></th>
                             <th style="text-align: center; width: 15%;">Current Score</th>
                         </tr>
                     </thead>
-                    <tbody id="rescoreTableBody">
-                    </tbody>
+                    <tbody id="rescoreTableBody"></tbody>
                 </table>
             </div>
-            
-            <div id="rescoreCount"
-                style="text-align: right; font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;"></div>
+            <div id="rescoreCount" style="text-align: right; font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;"></div>
         </div>
 
         <!-- Progress Section -->
@@ -106,18 +95,15 @@
                 <span id="progressLabel" style="font-weight: 600; color: var(--text-primary);">Processing...</span>
                 <span id="progressCount" style="color: var(--accent-indigo); font-weight: 700;">0 / 0</span>
             </div>
-            <div
-                style="width: 100%; height: 10px; background: rgba(255,255,255,0.05); border-radius: 5px; overflow: hidden; margin-bottom: 0.5rem;">
-                <div id="progressBar"
-                    style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent-indigo), var(--accent-emerald)); transition: width 0.3s;">
-                </div>
+            <div style="width: 100%; height: 10px; background: rgba(255,255,255,0.05); border-radius: 5px; overflow: hidden; margin-bottom: 0.5rem;">
+                <div id="progressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent-indigo), var(--accent-emerald)); transition: width 0.3s;"></div>
             </div>
             <div id="skippedInfo" style="font-size: 0.75rem; color: var(--text-secondary); display: none;"></div>
         </div>
 
         <button id="bulkAnalyzeBtn" class="btn btn-primary"
-            style="width: 100%; margin-top: 1.5rem; height: 50px; font-size: 1rem;" onclick="startBulkAnalysis()"
-            disabled>
+            style="width: 100%; margin-top: 1.5rem; height: 50px; font-size: 1rem;"
+            onclick="startBulkAnalysis()" disabled>
             <i class="fa-solid fa-bolt"></i> Start Bulk Analysis
         </button>
 
@@ -135,17 +121,19 @@
                 </div>
                 <div style="text-align: center;">
                     <div id="detail_score" style="font-size: 3rem; font-weight: 800; line-height: 1;">—</div>
-                    <div
-                        style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.12em; margin-top: 0.4rem;">
-                        Match Score</div>
+                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.12em; margin-top: 0.4rem;">Match Score</div>
                 </div>
             </div>
 
-            <!-- Score Selection for Rescored Candidates -->
-            <div id="rescoreScoreSelection" style="display: none; margin-bottom: 1.5rem; padding: 1.2rem; background: rgba(244,63,94,0.04); border-radius: 12px; border: 1px solid rgba(244,63,94,0.25);">
-                <div style="font-weight: 700; font-size: 0.9rem; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem; color: var(--accent-rose);">
-                    <i class="fa-solid fa-scale-balanced"></i> Select Final Match Score
+            <!-- Score Selection + Comparison (manual detail view for rescored candidates) -->
+            <div id="rescoreScoreSelection"
+                style="display: none; margin-bottom: 1.5rem; padding: 1.2rem; background: rgba(244,63,94,0.04); border-radius: 12px; border: 1px solid rgba(244,63,94,0.25);">
+                <div style="font-weight: 700; font-size: 0.9rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; color: var(--accent-rose);">
+                    <i class="fa-solid fa-scale-balanced"></i> Analysis Comparison &amp; Final Score
                 </div>
+                <!-- Comparison table injected here -->
+                <div id="detailComparisonTable" style="margin-bottom: 1.2rem;"></div>
+                <!-- Score radios -->
                 <div style="display: flex; flex-direction: column; gap: 0.6rem;" id="scoreRadioGroup">
                     <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid var(--border-color); transition: all 0.2s;">
                         <input type="radio" name="finalScoreChoice" value="previous" style="accent-color: var(--accent-rose);">
@@ -163,15 +151,15 @@
                         <span id="scoreChoice_average" style="font-weight: 800; color: var(--accent-indigo);">—</span>
                     </label>
                 </div>
-                <button id="confirmScoreBtn" class="btn" onclick="finalizeRescore()" style="margin-top: 1rem; width: 100%; background: var(--accent-rose); color: white; font-weight: 700; height: 42px;">
-                    <i class="fa-solid fa-check-circle"></i> Confirm & Sync to SharePoint
+                <button id="confirmScoreBtn" class="btn" onclick="finalizeRescore()"
+                    style="margin-top: 1rem; width: 100%; background: var(--accent-rose); color: white; font-weight: 700; height: 42px;">
+                    <i class="fa-solid fa-check-circle"></i> Confirm &amp; Sync to SharePoint
                 </button>
                 <div id="finalizeStatus" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.5rem; text-align: center;"></div>
             </div>
 
             <div id="detail_params" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;"></div>
-            <button
-                onclick="document.getElementById('resultDetailSection').style.display='none'; window.scrollTo({top: 0, behavior: 'smooth'});"
+            <button onclick="document.getElementById('resultDetailSection').style.display='none'; window.scrollTo({top: 0, behavior: 'smooth'});"
                 class="btn"
                 style="margin-top: 2rem; background: var(--card-bg); width: 100%; border: 1px solid var(--border-color);">
                 <i class="fa-solid fa-arrow-up"></i> Back to Top
@@ -182,108 +170,140 @@
     <!-- Right: Candidate List Panel -->
     <div class="card"
         style="height: calc(100vh - 200px); display: flex; flex-direction: column; position: sticky; top: 1.5rem;">
-        <h3
-            style="font-size: 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+        <h3 style="font-size: 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
             <i class="fa-solid fa-users" style="color: var(--accent-indigo);"></i> Candidate Results
-            <span id="candidateCounter" class="badge"
-                style="background: var(--accent-indigo); margin-left: auto;">0</span>
+            <span id="candidateCounter" class="badge" style="background: var(--accent-indigo); margin-left: auto;">0</span>
         </h3>
         <div id="candidateList"
             style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem; padding-right: 0.5rem;">
             <div id="listPlaceholder" style="text-align: center; padding: 4rem 1.5rem; color: var(--text-secondary);">
-                <i class="fa-solid fa-hourglass-start"
-                    style="font-size: 2.5rem; margin-bottom: 1.5rem; opacity: 0.2;"></i>
+                <i class="fa-solid fa-hourglass-start" style="font-size: 2.5rem; margin-bottom: 1.5rem; opacity: 0.2;"></i>
                 <p>Configure and start analysis to see candidates here.</p>
             </div>
         </div>
     </div>
 </div>
 
+<!-- ═══════════════════════════════════════════════════════════════════════
+     AUTO RESCORE CONFIRM MODAL — non-dismissible, drains a queue
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="rescoreAutoModal"
+    style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+           background:rgba(0,0,0,0.9); z-index:9999; align-items:center;
+           justify-content:center; backdrop-filter:blur(10px);">
+    <div class="card glass-panel"
+        style="width:760px; max-width:96vw; padding:0;
+               border:1px solid rgba(244,63,94,0.35); overflow:hidden;
+               box-shadow:0 24px 80px rgba(0,0,0,0.7); max-height:92vh;
+               display:flex; flex-direction:column;">
+
+        <!-- Modal header -->
+        <div style="background:rgba(244,63,94,0.1); padding:1.25rem 2rem;
+                    border-bottom:1px solid rgba(244,63,94,0.2);
+                    display:flex; align-items:center; gap:1rem; flex-shrink:0;">
+            <div style="width:38px; height:38px; border-radius:10px;
+                        background:rgba(244,63,94,0.2); display:flex;
+                        align-items:center; justify-content:center; flex-shrink:0;">
+                <i class="fa-solid fa-scale-balanced" style="color:#f87171; font-size:1rem;"></i>
+            </div>
+            <div style="flex:1; min-width:0;">
+                <h2 style="margin:0; font-size:1rem; color:#f87171;">Confirm Final Score</h2>
+                <p id="autoModalSubtitle" style="margin:0.2rem 0 0; font-size:0.82rem; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></p>
+            </div>
+            <!-- Queue badge -->
+            <div id="autoModalQueueBadge"
+                style="padding:0.25rem 0.7rem; border-radius:99px;
+                       background:rgba(244,63,94,0.15); color:#f87171;
+                       font-size:0.72rem; font-weight:700; display:none; flex-shrink:0;">
+                <span id="autoModalQueueCount"></span> more remaining
+            </div>
+        </div>
+
+        <!-- Scrollable body -->
+        <div style="overflow-y:auto; flex:1; padding:1.5rem 2rem;">
+
+            <!-- ── Analysis comparison table ──────────────────────────── -->
+            <div style="font-size:0.72rem; font-weight:700; color:var(--text-secondary);
+                        text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.6rem;">
+                <i class="fa-solid fa-table-columns" style="margin-right:0.3rem;"></i>
+                Analysis Comparison
+            </div>
+            <div id="autoModalComparisonTable" style="margin-bottom:1.5rem;"></div>
+
+            <!-- ── Score radios ────────────────────────────────────────── -->
+            <div style="font-size:0.72rem; font-weight:700; color:var(--text-secondary);
+                        text-transform:uppercase; letter-spacing:0.06em; margin-bottom:0.6rem;">
+                Select Final Score
+            </div>
+            <div id="autoModalRadios" style="display:flex; flex-direction:column; gap:0.5rem;"></div>
+
+            <!-- ── Feedback display ───────────────────────────────────── -->
+            <div id="autoModalFeedbackDisplay"
+                style="display:none; margin-top:1.1rem; padding:0.8rem 1rem;
+                       background:rgba(99,102,241,0.06); border:1px solid rgba(99,102,241,0.2);
+                       border-radius:10px; font-size:0.83rem;">
+                <div style="font-size:0.7rem; font-weight:700; color:var(--accent-indigo);
+                            text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.3rem;">
+                    <i class="fa-solid fa-message"></i> Your Feedback
+                </div>
+                <div id="autoModalFeedbackText" style="color:var(--text-primary); line-height:1.5;"></div>
+            </div>
+
+            <!-- Lock notice -->
+            <p style="font-size:0.75rem; color:rgba(248,113,113,0.75); margin-top:1rem;
+                      display:flex; align-items:center; gap:0.4rem;">
+                <i class="fa-solid fa-lock"></i>
+                You must confirm before analysis continues to the next candidate.
+            </p>
+        </div>
+
+        <!-- Modal footer -->
+        <div style="padding:1.1rem 2rem; border-top:1px solid var(--border-color);
+                    background:rgba(0,0,0,0.2); flex-shrink:0;">
+            <button id="autoModalConfirmBtn" class="btn"
+                style="width:100%; background:linear-gradient(135deg,#f43f5e,#e11d48);
+                       color:white; font-weight:700; height:44px; font-size:0.92rem;
+                       box-shadow:0 4px 15px rgba(244,63,94,0.3);"
+                onclick="finalizeRescoreFromModal()">
+                <i class="fa-solid fa-check-circle"></i> Confirm &amp; Sync to SharePoint
+            </button>
+        </div>
+    </div>
+</div>
+
 <style>
-    .badge {
-        display: inline-block;
-        padding: 0.35rem 0.7rem;
-        font-size: 0.8rem;
-        font-weight: 700;
-        border-radius: 6px;
-        color: white;
-    }
+    .badge { display:inline-block; padding:0.35rem 0.7rem; font-size:0.8rem; font-weight:700; border-radius:6px; color:white; }
+    input:checked + .slider { background-color: var(--accent-indigo) !important; }
+    #rescore_toggle:checked + .slider { background-color: var(--accent-rose) !important; }
+    .slider:before { position:absolute; content:""; height:18px; width:18px; left:3px; bottom:3px; background-color:white; transition:.4s; border-radius:50%; }
+    input:checked + .slider:before { transform:translateX(24px); }
 
-    input:checked+.slider {
-        background-color: var(--accent-indigo) !important;
-    }
+    .candidate-card { padding:1.2rem; background:rgba(255,255,255,0.02); border-radius:12px; border:1px solid var(--border-color); border-left:4px solid var(--accent-indigo); cursor:pointer; transition:all 0.2s cubic-bezier(0.4,0,0.2,1); }
+    .candidate-card:hover { transform:translateX(4px); background:rgba(255,255,255,0.04); border-color:rgba(99,102,241,0.3); }
+    .candidate-card.active { background:rgba(99,102,241,0.05); border-color:var(--accent-indigo); }
+    .candidate-card.rescored { border-left-color:var(--accent-rose); }
+    .score-circle { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:50%; font-weight:800; font-size:0.9rem; color:white; flex-shrink:0; box-shadow:0 4px 10px rgba(0,0,0,0.2); }
 
-    #rescore_toggle:checked+.slider {
-        background-color: var(--accent-rose) !important;
-    }
+    .rescore-row:hover { background:rgba(244,63,94,0.05); }
+    .rescore-row td { padding:9px 12px; border-bottom:1px solid rgba(255,255,255,0.04); }
+    .rescore-row:last-child td { border-bottom:none; }
 
-    .slider:before {
-        position: absolute;
-        content: "";
-        height: 18px;
-        width: 18px;
-        left: 3px;
-        bottom: 3px;
-        background-color: white;
-        transition: .4s;
-        border-radius: 50%;
-    }
+    .feedback-input.input-error { border-color:var(--accent-rose) !important; background:rgba(244,63,94,0.06) !important; }
 
-    input:checked+.slider:before {
-        transform: translateX(24px);
-    }
+    /* Comparison table */
+    .cmp-table { width:100%; border-collapse:collapse; border:1px solid var(--border-color); border-radius:8px; overflow:hidden; font-size:0.8rem; }
+    .cmp-table th { padding:0.45rem 0.7rem; background:rgba(255,255,255,0.04); font-size:0.68rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); }
+    .cmp-table th.new-col { color:var(--accent-emerald); }
+    .cmp-table td { padding:0.55rem 0.7rem; vertical-align:top; border-top:1px solid var(--border-color); }
+    .cmp-table td.border-left { border-left:1px solid var(--border-color); }
+    .cmp-table tr.changed { background:rgba(244,63,94,0.04); }
+    .cmp-status { display:inline-block; padding:1px 7px; border-radius:4px; font-size:0.65rem; font-weight:700; color:white; text-transform:uppercase; white-space:nowrap; margin-bottom:3px; }
+    .cmp-summary { font-size:0.73rem; color:var(--text-secondary); line-height:1.4; }
 
-    .candidate-card {
-        padding: 1.2rem;
-        background: rgba(255, 255, 255, 0.02);
-        border-radius: 12px;
-        border: 1px solid var(--border-color);
-        border-left: 4px solid var(--accent-indigo);
-        cursor: pointer;
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .candidate-card:hover {
-        transform: translateX(4px);
-        background: rgba(255, 255, 255, 0.04);
-        border-color: rgba(99, 102, 241, 0.3);
-    }
-
-    .candidate-card.active {
-        background: rgba(99, 102, 241, 0.05);
-        border-color: var(--accent-indigo);
-    }
-
-    .candidate-card.rescored {
-        border-left-color: var(--accent-rose);
-    }
-
-    .score-circle {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 44px;
-        height: 44px;
-        border-radius: 50%;
-        font-weight: 800;
-        font-size: 0.9rem;
-        color: white;
-        flex-shrink: 0;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    }
-
-    .rescore-row:hover {
-        background: rgba(244, 63, 94, 0.05);
-    }
-
-    .rescore-row td {
-        padding: 9px 12px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-    }
-
-    .rescore-row:last-child td {
-        border-bottom: none;
-    }
+    /* Auto-modal radio rows */
+    #autoModalRadios label { display:flex; align-items:center; gap:0.65rem; padding:0.6rem 0.85rem; border-radius:8px; border:1px solid var(--border-color); cursor:pointer; font-size:0.875rem; transition:background 0.15s; }
+    #autoModalRadios label:hover { background:rgba(255,255,255,0.03); }
+    #autoModalRadios label strong { margin-left:auto; font-size:1rem; }
 </style>
 {% endblock %}
 
@@ -291,8 +311,69 @@
 <script>
     let spData = { resumes: {}, jds: [] };
     let bulkResults = [];
-    // Track which filenames were manually selected for rescoring in this session
     let rescoreSet = new Set();
+
+    // Queue for auto-confirm modal (drains one-by-one, non-dismissible)
+    let rescoreConfirmQueue = [];
+    let rescoreModalActive = false;
+
+    // ══════════════════════════════════════════════════════════════════════
+    // COMPARISON TABLE BUILDER
+    // ══════════════════════════════════════════════════════════════════════
+
+    // DB stores breakdown with key 'project_history';
+    // SSE match_details uses key 'project_history_relevance'.
+    const COMPARISON_PARAMS = [
+        { label: '⏱ Experience', oldKey: 'experience',      newKey: 'experience' },
+        { label: '🎓 Education',  oldKey: 'education',       newKey: 'education' },
+        { label: '📍 Location',   oldKey: 'location',        newKey: 'location' },
+        { label: '🏗 Projects',   oldKey: 'project_history', newKey: 'project_history_relevance' },
+        { label: '🔧 Tools',      oldKey: 'tools_used',      newKey: 'tools_used' },
+        { label: '🏅 Certs',      oldKey: 'certifications',  newKey: 'certifications' },
+    ];
+
+    function statusColor(s) {
+        const sl = (s || '').toLowerCase();
+        if (sl === 'match') return '#10b981';
+        if (sl.includes('partial')) return '#f59e0b';
+        if (sl.includes('no')) return '#ef4444';
+        return '#6b7280';
+    }
+
+    function cmpCell(data) {
+        if (!data || (!data.status && !data.summary)) {
+            return '<span style="opacity:0.3;font-size:0.72rem;">—</span>';
+        }
+        const color = statusColor(data.status);
+        return `<div><span class="cmp-status" style="background:${color};">${data.status || '?'}</span></div>
+                <div class="cmp-summary">${data.summary || '—'}</div>`;
+    }
+
+    function buildComparisonTable(oldBreakdown, newMatchDetails) {
+        const rows = COMPARISON_PARAMS.map(p => {
+            const oldData = oldBreakdown ? oldBreakdown[p.oldKey] : null;
+            const newData = newMatchDetails ? newMatchDetails[p.newKey] : null;
+            const changed = oldData && newData && oldData.status !== newData.status;
+            return `<tr class="${changed ? 'changed' : ''}">
+                <td style="white-space:nowrap; font-weight:600; color:var(--text-primary);">${p.label}</td>
+                <td class="border-left">${cmpCell(oldData)}</td>
+                <td class="border-left">${cmpCell(newData)}</td>
+            </tr>`;
+        }).join('');
+
+        return `<table class="cmp-table">
+            <thead><tr>
+                <th style="width:15%;">Parameter</th>
+                <th class="border-left" style="width:42.5%;">Previous Analysis</th>
+                <th class="border-left new-col" style="width:42.5%;">New AI Analysis</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // PAGE INIT
+    // ══════════════════════════════════════════════════════════════════════
 
     async function initPage() {
         setupListeners();
@@ -329,7 +410,6 @@
     function populateDropdowns() {
         const jdSelect = document.getElementById('sp_jd_select');
         const folderSelect = document.getElementById('sp_folder_select');
-
         const prevJd = jdSelect.value;
         const prevFolder = folderSelect.value;
 
@@ -349,9 +429,7 @@
             folderSelect.appendChild(opt);
         });
 
-        if (prevJd && Array.from(jdSelect.options).some(o => o.value === prevJd)) {
-            jdSelect.value = prevJd;
-        }
+        if (prevJd && Array.from(jdSelect.options).some(o => o.value === prevJd)) jdSelect.value = prevJd;
         if (prevFolder && Array.from(folderSelect.options).some(o => o.value === prevFolder)) {
             folderSelect.value = prevFolder;
             folderSelect.dispatchEvent(new Event('change'));
@@ -366,22 +444,19 @@
             const folder = document.getElementById('sp_folder_select').value;
             const status = document.getElementById('selectionStatus');
             const rescoreToggleWrap = document.getElementById('rescoreToggleContainer');
-            
+
             if (folder && spData.resumes[folder]) {
                 const allFiles = spData.resumes[folder];
                 const total = allFiles.length;
                 const newCount = allFiles.filter(r => Number(r.match_score || 0) === 0).length;
                 const corruptedCount = allFiles.filter(r => Number(r.match_score || 0) === -1).length;
                 const screened = total - newCount - corruptedCount;
-                
-                let statusHtml = `📁 Total: ${total} | <span style="color: var(--accent-emerald); font-weight: 600;">New: ${newCount}</span> | <span style="color: var(--accent-indigo); font-weight: 600;">Screened: ${screened}</span>`;
-                if (corruptedCount > 0) {
-                    statusHtml += ` | <span style="color: var(--accent-rose); font-weight: 600;">Corrupted: ${corruptedCount}</span>`;
-                }
+
+                let statusHtml = `📁 Total: ${total} | <span style="color:var(--accent-emerald);font-weight:600;">New: ${newCount}</span> | <span style="color:var(--accent-indigo);font-weight:600;">Screened: ${screened}</span>`;
+                if (corruptedCount > 0) statusHtml += ` | <span style="color:var(--accent-rose);font-weight:600;">Corrupted: ${corruptedCount}</span>`;
                 status.innerHTML = statusHtml;
                 status.style.display = 'block';
 
-                // Toggle Rescore Mode visibility based on screened count
                 if (screened > 0) {
                     rescoreToggleWrap.style.display = 'flex';
                 } else {
@@ -390,11 +465,7 @@
                     document.getElementById('rescoreSection').style.display = 'none';
                     rescoreSet.clear();
                 }
-
-                // Refresh rescore table if in rescore mode
-                if (document.getElementById('rescore_toggle').checked) {
-                    renderRescoreTable();
-                }
+                if (document.getElementById('rescore_toggle').checked) renderRescoreTable();
             } else {
                 status.style.display = 'none';
                 rescoreToggleWrap.style.display = 'none';
@@ -407,13 +478,8 @@
 
         document.getElementById('rescore_toggle').onchange = (e) => {
             const section = document.getElementById('rescoreSection');
-            if (e.target.checked) {
-                section.style.display = 'block';
-                renderRescoreTable();
-            } else {
-                section.style.display = 'none';
-                rescoreSet.clear();
-            }
+            if (e.target.checked) { section.style.display = 'block'; renderRescoreTable(); }
+            else { section.style.display = 'none'; rescoreSet.clear(); }
         };
     }
 
@@ -423,57 +489,55 @@
         document.getElementById('bulkAnalyzeBtn').disabled = !(jdSelected && folderSelected);
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // RESCORE TABLE
+    // ══════════════════════════════════════════════════════════════════════
+
     function renderRescoreTable() {
         const folderName = document.getElementById('sp_folder_select').value;
         const tbody = document.getElementById('rescoreTableBody');
         const countEl = document.getElementById('rescoreCount');
-
         if (!folderName) {
-            tbody.innerHTML = '<tr><td colspan="4" style="padding:2rem; text-align:center; color:var(--text-secondary);">Select a folder first.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="padding:2rem;text-align:center;color:var(--text-secondary);">Select a folder first.</td></tr>';
             return;
         }
-
         const screened = (spData.resumes[folderName] || []).filter(r => Number(r.match_score || 0) > 0);
-
         if (screened.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="padding:2rem; text-align:center; color:var(--text-secondary); font-size:0.8rem;"><i class="fa-solid fa-circle-check" style="color:var(--accent-emerald); margin-right:5px;"></i>No screened candidates yet in this folder.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="padding:2rem;text-align:center;color:var(--text-secondary);font-size:0.8rem;"><i class="fa-solid fa-circle-check" style="color:var(--accent-emerald);margin-right:5px;"></i>No screened candidates yet.</td></tr>';
             countEl.innerText = '';
             return;
         }
-
         tbody.innerHTML = screened.map(r => {
             const scoreColor = r.match_score >= 75 ? '#10b981' : (r.match_score >= 50 ? '#f59e0b' : '#ef4444');
             const isChecked = rescoreSet.has(r.name) ? 'checked' : '';
-            const inputVisibility = isChecked ? '' : 'visibility: hidden;';
-            return `
-                <tr class="rescore-row">
-                    <td><input type="checkbox" class="rescore-cb" data-score="${r.match_score}" value="${r.name}" ${isChecked} onchange="onRescoreCbChange(this)"></td>
-                    <td style="color: var(--text-primary); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${r.name}">${r.name}</td>
-                    <td class="feedback-cell">
-                        <input type="text" class="feedback-input" data-name="${r.name}" placeholder="Reason for rescoring…" style="width: 100%; padding: 4px 8px; font-size: 0.78rem; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.04); color: var(--text-primary); ${inputVisibility}">
-                    </td>
-                    <td style="text-align: center;">
-                        <span style="display:inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; background: ${scoreColor}; color: white;">${r.match_score}</span>
-                    </td>
-                </tr>
-            `;
+            const vis = isChecked ? '' : 'visibility:hidden;';
+            return `<tr class="rescore-row">
+                <td><input type="checkbox" class="rescore-cb" data-score="${r.match_score}" value="${r.name}" ${isChecked} onchange="onRescoreCbChange(this)"></td>
+                <td style="color:var(--text-primary);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.name}">${r.name}</td>
+                <td><input type="text" class="feedback-input" data-name="${r.name}"
+                    placeholder="Required — reason for rescoring…"
+                    style="width:100%;padding:4px 8px;font-size:0.78rem;border-radius:6px;border:1px solid var(--border-color);background:rgba(255,255,255,0.04);color:var(--text-primary);${vis}"
+                    oninput="clearFeedbackError(this)"></td>
+                <td style="text-align:center;"><span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:0.75rem;font-weight:800;background:${scoreColor};color:white;">${r.match_score}</span></td>
+            </tr>`;
         }).join('');
-
         updateRescoreCount();
+    }
+
+    function clearFeedbackError(input) {
+        input.classList.remove('input-error');
+        input.placeholder = 'Required — reason for rescoring…';
     }
 
     function onRescoreCbChange(cb) {
         const row = cb.closest('tr');
-        const feedbackInput = row.querySelector('.feedback-input');
+        const fi = row.querySelector('.feedback-input');
         if (cb.checked) {
             rescoreSet.add(cb.value);
-            if (feedbackInput) feedbackInput.style.visibility = 'visible';
+            if (fi) fi.style.visibility = 'visible';
         } else {
             rescoreSet.delete(cb.value);
-            if (feedbackInput) {
-                feedbackInput.style.visibility = 'hidden';
-                feedbackInput.value = '';
-            }
+            if (fi) { fi.style.visibility = 'hidden'; fi.value = ''; fi.classList.remove('input-error'); }
         }
         updateRescoreCount();
     }
@@ -484,6 +548,10 @@
         el.innerText = count > 0 ? `${count} candidate(s) selected for re-analysis` : '';
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // BULK ANALYSIS START
+    // ══════════════════════════════════════════════════════════════════════
+
     function startBulkAnalysis() {
         const jdSelect = document.getElementById('sp_jd_select');
         const jdId = jdSelect.value;
@@ -491,26 +559,31 @@
         const folderName = document.getElementById('sp_folder_select').value;
         const allInFolder = spData.resumes[folderName] || [];
 
-        // New resumes: those with score exactly 0 (excluding corrupted -1)
         const newResumes = allInFolder.filter(r => Number(r.match_score || 0) === 0);
-
-        // Rescored resumes: selected via checkbox — force match_score to 0 so backend processes them
-        // Also pick up the feedback input value and the original score
         const rescoreResumes = allInFolder
             .filter(r => rescoreSet.has(r.name))
             .map(r => {
-                const feedbackInput = document.querySelector(`.feedback-input[data-name="${r.name}"]`);
-                const feedback = feedbackInput ? feedbackInput.value.trim() : '';
-                return { ...r, previous_score: r.match_score, match_score: 0, _is_rescore: true, reviewer_feedback: feedback };
+                const fi = document.querySelector(`.feedback-input[data-name="${r.name}"]`);
+                return { ...r, previous_score: r.match_score, match_score: 0, _is_rescore: true, reviewer_feedback: (fi ? fi.value.trim() : '') };
             });
 
-        // Combine both groups
-        const resumes = [...newResumes, ...rescoreResumes];
-
-        if (!resumes.length) {
-            alert("No new candidates found and no candidates selected for rescoring.");
-            return;
+        // ── Validate: feedback required for all rescored ──────────────────
+        if (rescoreResumes.length > 0) {
+            const missing = rescoreResumes.filter(r => !r.reviewer_feedback);
+            if (missing.length > 0) {
+                missing.forEach(r => {
+                    const input = document.querySelector(`.feedback-input[data-name="${r.name}"]`);
+                    if (input) { input.classList.add('input-error'); input.placeholder = 'Required — please enter a reason'; input.style.visibility = 'visible'; }
+                });
+                const first = document.querySelector('.feedback-input.input-error');
+                if (first) { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); first.focus(); }
+                alert(`Feedback is required for all ${missing.length} selected resume(s).\nPlease fill in the highlighted field(s).`);
+                return;
+            }
         }
+
+        const resumes = [...newResumes, ...rescoreResumes];
+        if (!resumes.length) { alert("No new candidates found and no candidates selected for rescoring."); return; }
 
         const btn = document.getElementById('bulkAnalyzeBtn');
         const progSection = document.getElementById('progressSection');
@@ -523,29 +596,21 @@
         if (placeholder) placeholder.remove();
         list.innerHTML = '';
         bulkResults = [];
+        rescoreConfirmQueue = [];
+        rescoreModalActive = false;
         document.getElementById('candidateCounter').innerText = '0';
         document.getElementById('skippedInfo').style.display = 'none';
 
-        // Build set of rescore names to tag results on arrival
         const rescoreNames = new Set(rescoreResumes.map(r => r.name));
-
-        const payload = {
-            jd_id: jdId,
-            jd_name: jdName,
-            folder_name: folderName,
-            resumes: resumes,
-            sync_sharepoint: true,   // Always sync to SP
-        };
 
         fetch('/api/analyze/bulk', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+            body: JSON.stringify({ jd_id: jdId, jd_name: jdName, folder_name: folderName, resumes, sync_sharepoint: true }),
         }).then(response => {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
-
             function read() {
                 reader.read().then(({ done, value }) => {
                     if (done) { onComplete(); return; }
@@ -554,35 +619,34 @@
                     buffer = lines.pop();
                     for (const line of lines) {
                         if (line.trim().startsWith('data: ')) {
-                            try {
-                                const evt = JSON.parse(line.trim().slice(6));
-                                handleEvent(evt, rescoreNames);
-                            } catch (e) { console.error("Event parse error", e); }
+                            try { handleEvent(JSON.parse(line.trim().slice(6)), rescoreNames); }
+                            catch (e) { console.error("Event parse error", e); }
                         }
                     }
                     read();
                 });
             }
             read();
-        }).catch(err => {
-            alert("Error starting bulk scan: " + err.message);
-            onComplete();
-        });
+        }).catch(err => { alert("Error starting bulk scan: " + err.message); onComplete(); });
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // SSE EVENT HANDLER
+    // ══════════════════════════════════════════════════════════════════════
 
     function handleEvent(evt, rescoreNames) {
         const progBar = document.getElementById('progressBar');
         const progLabel = document.getElementById('progressLabel');
         const progCount = document.getElementById('progressCount');
-        const skippedInfo = document.getElementById('skippedInfo');
 
         switch (evt.type) {
             case 'init':
                 progLabel.innerText = `Scanning ${evt.total} resume(s)...`;
                 progCount.innerText = `0 / ${evt.total}`;
                 if (evt.skipped > 0) {
-                    skippedInfo.style.display = 'block';
-                    skippedInfo.innerText = `(Skipped ${evt.skipped} already analyzed files)`;
+                    const si = document.getElementById('skippedInfo');
+                    si.style.display = 'block';
+                    si.innerText = `(Skipped ${evt.skipped} already analyzed files)`;
                 }
                 break;
             case 'progress':
@@ -591,11 +655,18 @@
                 progBar.style.width = `${(evt.current / evt.total) * 100}%`;
                 break;
             case 'result':
-                // Tag if this was a rescore
                 evt.candidate._is_rescore = rescoreNames && rescoreNames.has(evt.candidate.resume_filename);
                 bulkResults.push(evt.candidate);
                 renderCandidateCard(evt.candidate, bulkResults.length - 1);
                 document.getElementById('candidateCounter').innerText = bulkResults.length;
+                // Queue auto-modal for rescored candidates
+                if (evt.candidate._is_rescore && evt.candidate.previous_score !== undefined) {
+                    const fname = evt.candidate.resume_filename;
+                    const fi = document.querySelector(`.feedback-input[data-name="${fname}"]`);
+                    const feedback = fi ? fi.value.trim() : (evt.candidate.reviewer_feedback || '');
+                    rescoreConfirmQueue.push({ candidate: evt.candidate, feedback });
+                    showNextRescoreModal();
+                }
                 break;
             case 'error_item':
                 renderErrorCard(evt.resume_name, evt.error);
@@ -607,29 +678,159 @@
         }
     }
 
+    // ══════════════════════════════════════════════════════════════════════
+    // AUTO RESCORE MODAL QUEUE
+    // ══════════════════════════════════════════════════════════════════════
+
+    function showNextRescoreModal() {
+        if (rescoreModalActive || rescoreConfirmQueue.length === 0) return;
+        rescoreModalActive = true;
+
+        const { candidate, feedback } = rescoreConfirmQueue[0]; // peek
+        const prevScore = candidate.previous_score;
+        const newScore = candidate.score;
+        const avgScore = Math.round((prevScore + newScore) / 2);
+
+        // Subtitle
+        document.getElementById('autoModalSubtitle').innerText = candidate.name;
+
+        // Queue badge
+        const remaining = rescoreConfirmQueue.length;
+        const badge = document.getElementById('autoModalQueueBadge');
+        if (remaining > 1) {
+            document.getElementById('autoModalQueueCount').innerText = remaining - 1;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+
+        // Comparison table
+        document.getElementById('autoModalComparisonTable').innerHTML =
+            buildComparisonTable(candidate.old_breakdown, candidate.match_details);
+
+        // Score radios
+        const sc = s => s >= 75 ? '#10b981' : (s >= 50 ? '#f59e0b' : '#ef4444');
+        document.getElementById('autoModalRadios').innerHTML = `
+            <label>
+                <input type="radio" name="autoScoreChoice" value="previous" style="accent-color:var(--accent-rose);">
+                <span>Keep Previous Score</span>
+                <strong style="color:${sc(prevScore)};">${prevScore}</strong>
+            </label>
+            <label>
+                <input type="radio" name="autoScoreChoice" value="new" checked style="accent-color:var(--accent-rose);">
+                <span>Use New AI Score</span>
+                <strong style="color:${sc(newScore)};">${newScore}</strong>
+            </label>
+            <label>
+                <input type="radio" name="autoScoreChoice" value="average" style="accent-color:var(--accent-rose);">
+                <span>Use Average</span>
+                <strong style="color:${sc(avgScore)};">${avgScore}</strong>
+            </label>
+        `;
+
+        // Feedback display
+        const fd = document.getElementById('autoModalFeedbackDisplay');
+        if (feedback) {
+            document.getElementById('autoModalFeedbackText').innerText = feedback;
+            fd.style.display = 'block';
+        } else {
+            fd.style.display = 'none';
+        }
+
+        // Store data on button for confirm handler
+        const btn = document.getElementById('autoModalConfirmBtn');
+        btn.dataset.candidateJson = JSON.stringify(candidate);
+        btn.dataset.feedback = feedback || '';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Confirm &amp; Sync to SharePoint';
+
+        document.getElementById('rescoreAutoModal').style.display = 'flex';
+    }
+
+    async function finalizeRescoreFromModal() {
+        const btn = document.getElementById('autoModalConfirmBtn');
+        const candidate = JSON.parse(btn.dataset.candidateJson);
+        const feedback = btn.dataset.feedback;
+        const choice = document.querySelector('input[name="autoScoreChoice"]:checked')?.value;
+        if (!choice) return;
+
+        const prevScore = candidate.previous_score;
+        const newScore = candidate.score;
+        const avgScore = Math.round((prevScore + newScore) / 2);
+        let finalScore = choice === 'previous' ? prevScore : (choice === 'new' ? newScore : avgScore);
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Syncing…';
+
+        const jdSelect = document.getElementById('sp_jd_select');
+        const folderName = document.getElementById('sp_folder_select').value;
+
+        try {
+            const resp = await fetch('/api/rescore/finalize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidate_id: candidate.id,
+                    final_score: finalScore,
+                    score_choice: choice,
+                    reviewer_feedback: feedback,
+                    old_breakdown: candidate.old_breakdown || null,
+                    resume_filename: candidate.resume_filename,
+                    resume_id: candidate.resume_id || '',
+                    candidate_name: candidate.name,
+                    candidate_email: candidate.email || '',
+                    candidate_phone: '',
+                    job_code: folderName,
+                    jd_title: jdSelect.options[jdSelect.selectedIndex]?.text || '',
+                }),
+            });
+            const result = await resp.json();
+            if (resp.ok) {
+                // Update in-memory result so detail view shows correct score
+                const idx = bulkResults.findIndex(c => c.id === candidate.id);
+                if (idx !== -1) {
+                    bulkResults[idx].score = finalScore;
+                    bulkResults[idx]._is_rescore = false; // hide selection panel in detail view
+                }
+                // Advance queue
+                document.getElementById('rescoreAutoModal').style.display = 'none';
+                rescoreConfirmQueue.shift();
+                rescoreModalActive = false;
+                showNextRescoreModal();
+            } else {
+                alert('Sync error: ' + (result.error || 'Unknown error'));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Confirm &amp; Sync to SharePoint';
+            }
+        } catch (err) {
+            alert('Network error: ' + err.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Confirm &amp; Sync to SharePoint';
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // CANDIDATE CARDS
+    // ══════════════════════════════════════════════════════════════════════
+
     function renderCandidateCard(c, index) {
         const list = document.getElementById('candidateList');
         const scoreColor = c.score >= 75 ? '#10b981' : (c.score >= 50 ? '#f59e0b' : '#ef4444');
-        const isRescore = c._is_rescore;
-
         const card = document.createElement('div');
-        card.className = 'candidate-card' + (isRescore ? ' rescored' : '');
+        card.className = 'candidate-card' + (c._is_rescore ? ' rescored' : '');
         card.onclick = () => showDetail(index, card);
         card.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <div class="score-circle" style="background: ${scoreColor}">${c.score}</div>
-                <div style="flex: 1; min-width: 0;">
-                    <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 2px; display: flex; align-items: center; gap: 0.4rem;">
+            <div style="display:flex;align-items:center;gap:1rem;">
+                <div class="score-circle" style="background:${scoreColor}">${c.score}</div>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-weight:700;color:var(--text-primary);margin-bottom:2px;display:flex;align-items:center;gap:0.4rem;">
                         ${c.name}
-                        ${isRescore ? `<span style="padding:1px 7px; border-radius:20px; font-size:0.65rem; font-weight:800; background:var(--accent-rose); color:white; text-transform:uppercase; letter-spacing:0.04em;">Re-scored</span>` : ''}
+                        ${c._is_rescore ? `<span style="padding:1px 7px;border-radius:20px;font-size:0.65rem;font-weight:800;background:var(--accent-rose);color:white;text-transform:uppercase;">Re-scored</span>` : ''}
                     </div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.3;">
-                        ${c.current_title || 'No Title'} • ${c.experience || 0} yrs exp
-                    </div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary);line-height:1.3;">${c.current_title || 'No Title'} • ${c.experience || 0} yrs exp</div>
                 </div>
-                <div style="font-size: 0.7rem; color: var(--accent-indigo); font-weight: 800; text-transform: uppercase; white-space: nowrap;">View →</div>
-            </div>
-        `;
+                <div style="font-size:0.7rem;color:var(--accent-indigo);font-weight:800;white-space:nowrap;">View →</div>
+            </div>`;
         list.prepend(card);
     }
 
@@ -637,19 +838,17 @@
         const card = document.createElement('div');
         card.className = 'candidate-card';
         card.style.borderLeftColor = 'var(--accent-rose)';
-        card.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 1rem; opacity: 0.7;">
-                <div class="score-circle" style="background: var(--accent-rose);">!</div>
-                <div style="flex: 1;">
-                    <div style="font-weight: 700; font-size: 0.85rem;">${name}</div>
-                    <div style="font-size: 0.7rem; color: var(--accent-rose);">${err}</div>
-                </div>
-            </div>
-        `;
+        card.innerHTML = `<div style="display:flex;align-items:center;gap:1rem;opacity:0.7;">
+            <div class="score-circle" style="background:var(--accent-rose);">!</div>
+            <div style="flex:1;"><div style="font-weight:700;font-size:0.85rem;">${name}</div><div style="font-size:0.7rem;color:var(--accent-rose);">${err}</div></div>
+        </div>`;
         document.getElementById('candidateList').prepend(card);
     }
 
-    // Store the currently viewed candidate index for score finalization
+    // ══════════════════════════════════════════════════════════════════════
+    // DETAIL VIEW
+    // ══════════════════════════════════════════════════════════════════════
+
     let currentDetailIndex = null;
 
     function showDetail(index, cardEl) {
@@ -669,21 +868,21 @@
         scoreEl.innerText = c.score;
         scoreEl.style.color = c.score >= 75 ? '#34d399' : (c.score >= 50 ? '#fbbf24' : '#f43f5e');
 
-        // Score selection UI for rescored candidates
         const selectionPanel = document.getElementById('rescoreScoreSelection');
-        const finalizeStatus = document.getElementById('finalizeStatus');
-        finalizeStatus.innerText = '';
+        document.getElementById('finalizeStatus').innerText = '';
 
         if (c._is_rescore && c.previous_score !== undefined && c.previous_score !== null) {
             const prevScore = c.previous_score;
             const newScore = c.score;
             const avgScore = Math.round((prevScore + newScore) / 2);
 
+            // Inject comparison table into detail view
+            document.getElementById('detailComparisonTable').innerHTML =
+                buildComparisonTable(c.old_breakdown, c.match_details);
+
             document.getElementById('scoreChoice_previous').innerText = prevScore;
             document.getElementById('scoreChoice_new').innerText = newScore;
             document.getElementById('scoreChoice_average').innerText = avgScore;
-
-            // Reset radio to 'new' by default
             document.querySelector('input[name="finalScoreChoice"][value="new"]').checked = true;
 
             selectionPanel.style.display = 'block';
@@ -700,16 +899,13 @@
             { label: '🔧 Tools', key: 'tools_used' },
             { label: '🏅 Certs', key: 'certifications' },
         ];
-
         document.getElementById('detail_params').innerHTML = params.map(p => {
             const data = (c.match_details || {})[p.key] || { status: 'Unknown', summary: '-' };
-            return `
-                <div style="padding: 1rem; background: rgba(255,255,255,0.03); border-radius: 10px; border: 1px solid var(--border-color);">
-                    <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.5rem;">${p.label}</div>
-                    ${badgeHtml(data.status)}
-                    <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.4; margin-top: 0.5rem;">${data.summary}</div>
-                </div>
-            `;
+            return `<div style="padding:1rem;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid var(--border-color);">
+                <div style="font-size:0.8rem;font-weight:700;color:var(--text-primary);margin-bottom:0.5rem;">${p.label}</div>
+                ${badgeHtml(data.status)}
+                <div style="font-size:0.75rem;color:var(--text-secondary);line-height:1.4;margin-top:0.5rem;">${data.summary}</div>
+            </div>`;
         }).join('');
 
         section.scrollIntoView({ behavior: 'smooth' });
@@ -723,16 +919,17 @@
 
         const prevScore = c.previous_score || 0;
         const newScore = c.score;
-        let finalScore;
-        if (choice === 'previous') finalScore = prevScore;
-        else if (choice === 'new') finalScore = newScore;
-        else finalScore = Math.round((prevScore + newScore) / 2);
+        let finalScore = choice === 'previous' ? prevScore : (choice === 'new' ? newScore : Math.round((prevScore + newScore) / 2));
 
         const btn = document.getElementById('confirmScoreBtn');
         const statusEl = document.getElementById('finalizeStatus');
         btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Syncing...';
         statusEl.innerText = '';
+
+        // Retrieve the feedback entered at the checkbox stage
+        const fname = c.resume_filename;
+        const fi = document.querySelector(`.feedback-input[data-name="${fname}"]`);
+        const feedback = fi ? fi.value.trim() : (c.reviewer_feedback || '');
 
         const jdSelect = document.getElementById('sp_jd_select');
         const folderName = document.getElementById('sp_folder_select').value;
@@ -744,6 +941,9 @@
                 body: JSON.stringify({
                     candidate_id: c.id,
                     final_score: finalScore,
+                    score_choice: choice,
+                    reviewer_feedback: feedback,
+                    old_breakdown: c.old_breakdown || null,
                     resume_filename: c.resume_filename,
                     resume_id: c.resume_id || '',
                     candidate_name: c.name,
@@ -755,34 +955,32 @@
             });
             const result = await resp.json();
             if (resp.ok) {
-                statusEl.innerHTML = `<span style="color: var(--accent-emerald);">✅ Score finalized to <b>${finalScore}</b> and synced to SharePoint.</span>`;
-                // Update the in-memory candidate score
+                statusEl.innerHTML = `<span style="color:var(--accent-emerald);">✅ Score finalized to <b>${finalScore}</b> and synced to SharePoint.</span>`;
                 c.score = finalScore;
-                c._is_rescore = false; // prevent re-showing selection
-                // Update the score display
+                c._is_rescore = false;
                 const scoreEl = document.getElementById('detail_score');
                 scoreEl.innerText = finalScore;
                 scoreEl.style.color = finalScore >= 75 ? '#34d399' : (finalScore >= 50 ? '#fbbf24' : '#f43f5e');
                 document.getElementById('rescoreScoreSelection').style.display = 'none';
             } else {
-                statusEl.innerHTML = `<span style="color: var(--accent-rose);">❌ ${result.error}</span>`;
+                statusEl.innerHTML = `<span style="color:var(--accent-rose);">❌ ${result.error}</span>`;
             }
         } catch (err) {
-            statusEl.innerHTML = `<span style="color: var(--accent-rose);">❌ ${err.message}</span>`;
+            statusEl.innerHTML = `<span style="color:var(--accent-rose);">❌ ${err.message}</span>`;
         } finally {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Confirm & Sync to SharePoint';
+            btn.innerHTML = '<i class="fa-solid fa-check-circle"></i> Confirm &amp; Sync to SharePoint';
         }
     }
 
     function badgeHtml(status) {
         const s = (status || 'Unknown').toLowerCase();
-        let bg, icon, color;
-        if (s === 'match') { bg = '#10b981'; icon = '✅'; color = 'white'; }
-        else if (s === 'partial match') { bg = '#f59e0b'; icon = '⚠️'; color = 'white'; }
-        else if (s === 'no match') { bg = '#ef4444'; icon = '❌'; color = 'white'; }
-        else { bg = '#6b7280'; icon = '❔'; color = 'white'; }
-        return `<span style="display:inline-flex; align-items:center; gap: 4px; padding:4px 12px; border-radius:30px; font-size:0.75rem; font-weight:800; background:${bg}; color:${color}; box-shadow: 0 2px 4px rgba(0,0,0,0.15); text-transform: uppercase;">${icon} ${status}</span>`;
+        let bg, icon;
+        if (s === 'match') { bg = '#10b981'; icon = '✅'; }
+        else if (s === 'partial match') { bg = '#f59e0b'; icon = '⚠️'; }
+        else if (s === 'no match') { bg = '#ef4444'; icon = '❌'; }
+        else { bg = '#6b7280'; icon = '❔'; }
+        return `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:30px;font-size:0.75rem;font-weight:800;background:${bg};color:white;box-shadow:0 2px 4px rgba(0,0,0,0.15);text-transform:uppercase;">${icon} ${status}</span>`;
     }
 
     function onComplete() {

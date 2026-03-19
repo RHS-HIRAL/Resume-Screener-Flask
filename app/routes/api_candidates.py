@@ -56,7 +56,7 @@ def _background_bulk_sp_push(candidates: list, status: str):
 @api_candidates_bp.route("/api/candidates")
 @login_required
 def api_list_candidates():
-    min_score = request.args.get("min_score", 40, type=int)
+    min_score = request.args.get("min_score", 0, type=int)
     role = request.args.get("role", "")
 
     candidates = get_all_candidates(min_score=min_score)
@@ -229,10 +229,12 @@ def _sync_ms_form_responses_logic() -> int:
             excel_filenames = ["Full_Stack_Development_Intern", "candidate information"]
 
         total_sync_count = 0
-        
+
         # Determine all candidates that we need to consider for form sync
         all_candidates = get_all_candidates(min_score=0)
-        candidate_map = {c["email"].lower(): c for c in all_candidates if c.get("email")}
+        candidate_map = {
+            c["email"].lower(): c for c in all_candidates if c.get("email")
+        }
 
         if not candidate_map:
             return 0
@@ -267,24 +269,28 @@ def _sync_ms_form_responses_logic() -> int:
                 if email:
                     email_clean = str(email).strip().lower()
                     latest_rows_by_email[email_clean] = row
-            
+
             # Now we have the latest response for each email present in this Excel part.
             for email_clean, latest_row in latest_rows_by_email.items():
                 if email_clean in candidate_map:
                     candidate = candidate_map[email_clean]
-                    
+
                     # Decide if this is a "new" update (they didn't have one, or the data changed)
                     # For simplicity, we just update it and if they already had a response, we reset status.
                     had_previous_response = candidate.get("form_responses") is not None
-                    
+
                     try:
-                        updated = update_candidate_form_response(email_clean, latest_row)
+                        updated = update_candidate_form_response(
+                            email_clean, latest_row
+                        )
 
                         if updated:
                             # If they submitted a new response after already having one, reset status to PENDING
                             if had_previous_response:
-                                update_candidate_selection_status(candidate["id"], "PENDING")
-                                
+                                update_candidate_selection_status(
+                                    candidate["id"], "PENDING"
+                                )
+
                             total_sync_count += 1
                             # Auto-calculate the Form Score upon sync
                             try:
@@ -293,9 +299,7 @@ def _sync_ms_form_responses_logic() -> int:
 
                                 # We fetch the specific job to get its custom weights
                                 jobs = get_all_jobs()
-                                job = next(
-                                    (j for j in jobs if j["id"] == job_id), {}
-                                )
+                                job = next((j for j in jobs if j["id"] == job_id), {})
                                 custom_weights = job.get("scoring_weights")
 
                                 score_result = calculate_form_score(
@@ -309,12 +313,14 @@ def _sync_ms_form_responses_logic() -> int:
                                 print(
                                     f"[SYNC ERROR] Scoring failed for {email_clean}: {score_err}"
                                 )
-                                
-                            # We don't delete from candidate_map here because a candidate might 
-                            # (theoretically) appear in another excel file, but it's fine 
+
+                            # We don't delete from candidate_map here because a candidate might
+                            # (theoretically) appear in another excel file, but it's fine
                             # since the latest loop aggregates by email anyway.
                     except Exception as e:
-                        print(f"[SYNC ERROR] Row processing failed for {email_clean}: {e}")
+                        print(
+                            f"[SYNC ERROR] Row processing failed for {email_clean}: {e}"
+                        )
 
         return total_sync_count
     except Exception as e:
@@ -361,9 +367,15 @@ def api_backfill_form_scores():
                 custom_weights = job.get("scoring_weights")
 
                 # ── DIAGNOSTIC LOGGING ────────────────────────────────────────
-                print(f"\n[BACKFILL] Candidate: {c.get('full_name')} (id={c['id']}, job_id={job_id})")
-                print(f"[BACKFILL]   jd_text present: {bool(jd_text)} | length: {len(jd_text or '')}")
-                print(f"[BACKFILL]   form_response keys: {list(c['form_responses'].keys())}")
+                print(
+                    f"\n[BACKFILL] Candidate: {c.get('full_name')} (id={c['id']}, job_id={job_id})"
+                )
+                print(
+                    f"[BACKFILL]   jd_text present: {bool(jd_text)} | length: {len(jd_text or '')}"
+                )
+                print(
+                    f"[BACKFILL]   form_response keys: {list(c['form_responses'].keys())}"
+                )
                 print(f"[BACKFILL]   custom_weights: {custom_weights}")
                 # ─────────────────────────────────────────────────────────────
 
@@ -379,7 +391,9 @@ def api_backfill_form_scores():
                     print(f"[BACKFILL]   ✅ Saved score: {score_result['score']}")
                 else:
                     skipped += 1
-                    print(f"[BACKFILL]   ⚠️  Score is None — skipped (no parseable criteria matched)")
+                    print(
+                        "[BACKFILL]   ⚠️  Score is None — skipped (no parseable criteria matched)"
+                    )
             except Exception as e:
                 print(f"[BACKFILL ERROR] {c.get('full_name', 'Unknown')}: {e}")
                 skipped += 1
@@ -411,24 +425,30 @@ def api_debug_form_scores():
             jd_text = job.get("jd_text", "")
             custom_weights = job.get("scoring_weights")
 
-            score_result = calculate_form_score(c["form_responses"], jd_text, custom_weights)
+            score_result = calculate_form_score(
+                c["form_responses"], jd_text, custom_weights
+            )
 
-            results.append({
-                "candidate_id": c["id"],
-                "name": c.get("full_name"),
-                "email": c.get("email"),
-                "job_id": job_id,
-                "jd_text_length": len(jd_text or ""),
-                "jd_text_snippet": (jd_text or "")[:200],
-                "form_response_keys": list(c["form_responses"].keys()),
-                "custom_weights": custom_weights,
-                "score_result": score_result,
-                "current_form_score": c.get("form_score"),
-            })
+            results.append(
+                {
+                    "candidate_id": c["id"],
+                    "name": c.get("full_name"),
+                    "email": c.get("email"),
+                    "job_id": job_id,
+                    "jd_text_length": len(jd_text or ""),
+                    "jd_text_snippet": (jd_text or "")[:200],
+                    "form_response_keys": list(c["form_responses"].keys()),
+                    "custom_weights": custom_weights,
+                    "score_result": score_result,
+                    "current_form_score": c.get("form_score"),
+                }
+            )
 
         return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
 @api_candidates_bp.route("/api/candidates/delete", methods=["POST"])
 @login_required
 def api_delete_candidates():

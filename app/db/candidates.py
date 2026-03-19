@@ -30,12 +30,8 @@ def save_candidate(
     career = extract.get("career_metrics", {})
 
     def _param(key: str) -> dict:
-        """Extract {status, summary} for a single ParameterMatch field."""
         obj = match.get(key, {})
-        return {
-            "status": obj.get("status", ""),
-            "summary": obj.get("summary", ""),
-        }
+        return {"status": obj.get("status", ""), "summary": obj.get("summary", "")}
 
     match_breakdown = {
         "experience": _param("experience"),
@@ -63,7 +59,7 @@ def save_candidate(
                     sharepoint_link = COALESCE(NULLIF(%s, ''), sharepoint_link),
                     raw_json = %s, screened_at = NOW()
                 WHERE id = %s RETURNING id
-            """,
+                """,
                 (
                     personal.get("full_name", "Unknown"),
                     personal.get("email", ""),
@@ -90,7 +86,7 @@ def save_candidate(
                     match_breakdown, resume_filename, sharepoint_link, raw_json
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
                 RETURNING id
-            """,
+                """,
                 (
                     candidate_id,
                     job_id,
@@ -111,16 +107,34 @@ def save_candidate(
             return cur.fetchone()["id"]
 
 
+def get_breakdown_by_resume(resume_filename: str, job_id: int) -> Optional[dict]:
+    """
+    Snapshot the current match_breakdown for a candidate BEFORE save_candidate
+    overwrites it during a rescore pass. Returns None if no existing record.
+    psycopg2 with RealDictCursor deserialises JSONB columns to Python dicts automatically.
+    """
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT match_breakdown FROM candidates WHERE resume_filename = %s AND job_id = %s LIMIT 1",
+            (resume_filename, job_id),
+        )
+        row = cur.fetchone()
+        if row and row["match_breakdown"]:
+            bd = row["match_breakdown"]
+            return bd if isinstance(bd, dict) else dict(bd)
+        return None
+
+
 def get_candidates_for_role(role_name: str) -> list:
     with get_cursor() as cur:
         cur.execute(
             """
-            SELECT c.*, j.role_name 
+            SELECT c.*, j.role_name
             FROM candidates c
             JOIN jobs j ON c.job_id = j.id
             WHERE j.role_name = %s
             ORDER BY c.match_score DESC, c.screened_at DESC
-        """,
+            """,
             (role_name,),
         )
         return [dict(r) for r in cur.fetchall()]
@@ -129,7 +143,7 @@ def get_candidates_for_role(role_name: str) -> list:
 def get_unsynced_candidates() -> List[Dict]:
     with get_cursor() as cur:
         cur.execute("""
-            SELECT c.id, c.email, c.full_name, c.job_id, j.role_name 
+            SELECT c.id, c.email, c.full_name, c.job_id, j.role_name
             FROM candidates c
             JOIN jobs j ON c.job_id = j.id
             WHERE c.form_responses IS NULL
@@ -141,12 +155,12 @@ def get_all_candidates(min_score: int = 0) -> list:
     with get_cursor() as cur:
         cur.execute(
             """
-            SELECT c.*, j.role_name 
+            SELECT c.*, j.role_name
             FROM candidates c
             JOIN jobs j ON c.job_id = j.id
             WHERE c.match_score >= %s
             ORDER BY c.match_score DESC, c.screened_at DESC
-        """,
+            """,
             (min_score,),
         )
         return [dict(r) for r in cur.fetchall()]
@@ -156,11 +170,11 @@ def get_candidate_by_id(cid: int) -> Optional[dict]:
     with get_cursor() as cur:
         cur.execute(
             """
-            SELECT c.*, j.role_name 
+            SELECT c.*, j.role_name
             FROM candidates c
             JOIN jobs j ON c.job_id = j.id
             WHERE c.id = %s
-        """,
+            """,
             (cid,),
         )
         row = cur.fetchone()
@@ -171,11 +185,11 @@ def get_candidate_by_visible_id(candidate_id: str) -> Optional[dict]:
     with get_cursor() as cur:
         cur.execute(
             """
-            SELECT c.*, j.role_name 
+            SELECT c.*, j.role_name
             FROM candidates c
             JOIN jobs j ON c.job_id = j.id
             WHERE c.candidate_id = %s
-        """,
+            """,
             (candidate_id,),
         )
         row = cur.fetchone()
@@ -188,11 +202,11 @@ def get_candidates_by_ids(ids: list) -> list:
     with get_cursor() as cur:
         cur.execute(
             """
-            SELECT c.*, j.role_name 
+            SELECT c.*, j.role_name
             FROM candidates c
             JOIN jobs j ON c.job_id = j.id
             WHERE c.id IN %s
-        """,
+            """,
             (tuple(ids),),
         )
         return [dict(r) for r in cur.fetchall()]
@@ -271,7 +285,6 @@ def update_candidate_qa_score(candidate_id: str, qa_score: int) -> bool:
 
 
 def update_candidate_match_score(candidate_db_id: int, match_score: int) -> bool:
-    """Update the match_score for a candidate by its database primary key (id)."""
     with get_cursor(commit=True) as cur:
         cur.execute(
             "UPDATE candidates SET match_score = %s WHERE id = %s",
@@ -280,19 +293,84 @@ def update_candidate_match_score(candidate_db_id: int, match_score: int) -> bool
         return cur.rowcount > 0
 
 
+def finalize_rescore(
+    candidate_db_id: int,
+    match_score: int,
+    reviewer_feedback: Optional[str] = None,
+    old_breakdown: Optional[dict] = None,
+    score_choice: str = "new",
+) -> bool:
+    """
+    Persist the final score (and optionally breakdown + feedback) after a rescore.
+
+    score_choice == 'previous':
+        • Restore match_score to the previous value (caller passes prev_score as match_score).
+        • Restore match_breakdown to old_breakdown, reverting what save_candidate just wrote.
+        • Leave rescore_feedback completely unchanged in the DB.
+
+    score_choice in ('new', 'average'):
+        • Update match_score to the chosen value.
+        • Keep match_breakdown as-is — save_candidate already wrote the correct new one.
+        • Persist reviewer_feedback → rescore_feedback column.
+    """
+    with get_cursor(commit=True) as cur:
+        if score_choice == "previous":
+            if old_breakdown is not None:
+                cur.execute(
+                    """
+                    UPDATE candidates
+                    SET match_score = %s, match_breakdown = %s::jsonb
+                    WHERE id = %s
+                    """,
+                    (match_score, json.dumps(old_breakdown), candidate_db_id),
+                )
+            else:
+                # No old breakdown available — at least revert the score
+                cur.execute(
+                    "UPDATE candidates SET match_score = %s WHERE id = %s",
+                    (match_score, candidate_db_id),
+                )
+        else:
+            # 'new' or 'average': breakdown is already correct; persist feedback
+            if reviewer_feedback is not None:
+                cur.execute(
+                    """
+                    UPDATE candidates
+                    SET match_score = %s, rescore_feedback = %s
+                    WHERE id = %s
+                    """,
+                    (match_score, reviewer_feedback, candidate_db_id),
+                )
+            else:
+                cur.execute(
+                    "UPDATE candidates SET match_score = %s WHERE id = %s",
+                    (match_score, candidate_db_id),
+                )
+        return cur.rowcount > 0
+
+
+def update_candidate_resume_filename(candidate_db_id: int, new_filename: str) -> bool:
+    """
+    Update resume_filename in the DB after a SharePoint rename.
+    Called from the background SP push thread once the PATCH succeeds.
+    """
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            "UPDATE candidates SET resume_filename = %s WHERE id = %s",
+            (new_filename, candidate_db_id),
+        )
+        return cur.rowcount > 0
+
+
 def delete_candidates_by_ids(candidate_ids: list[int]) -> tuple[int, list[dict]]:
     """
     Hard-delete candidates by their integer PKs.
-    Returns (deleted_count, list of {id, resume_filename, role_name}) so the
-    caller can clean up SharePoint files if requested.
-    ON DELETE CASCADE in the schema automatically removes related
-    call_qa_results rows.
+    ON DELETE CASCADE removes related call_qa_results rows automatically.
     """
     if not candidate_ids:
         return 0, []
 
     with get_cursor(commit=True) as cur:
-        # Fetch filenames BEFORE deletion so caller can remove SP files
         cur.execute(
             """
             SELECT c.id, c.resume_filename, j.role_name
