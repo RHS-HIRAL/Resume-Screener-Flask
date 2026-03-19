@@ -2,6 +2,7 @@
 app/services/resume_sync.py
 Resume sync pipelines:
   Pipeline 1 — Fetch emails from Outlook → download resumes → upload to SharePoint.
+               Stamps Source="Website" on every uploaded resume.
   Pipeline 2 — Extract text from all SharePoint resumes → upload .txt files.
               Corrupted files (no extractable text) get MatchScore = -1.
 """
@@ -399,12 +400,12 @@ def run_email_fetch_pipeline(auth: GraphAuthProvider) -> dict:
                 continue
 
             target_filename = f"{candidate.safe_name}_{candidate.safe_job_id}{ext}"
+
+            # CHANGED: Removed JobID and JobRole (resume is already in the correct job-role subfolder). Added Source="Website" to identify Outlook-sourced resumes and prevent them from being renamed after screening.
             metadata = {
                 "CandidateName": candidate.name,
                 "CandidateEmail": candidate.email,
                 "CandidatePhone": candidate.phone,
-                "JobID": candidate.job_id,
-                "JobRole": candidate.job_role,
                 "SourceEmailID": candidate.source_email_id,
                 "Source": "Website",
             }

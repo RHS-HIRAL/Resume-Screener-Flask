@@ -128,12 +128,11 @@ class JobDescription:
 #  FIELD MAPS
 # ══════════════════════════════════════════════════════════════════════════════
 
+# CHANGED: Removed JobID and JobRole; added Source. Resumes are uploaded directly into their job-role folder so those fields are redundant. Source="Website" is now stamped by the email pipeline.
 RESUME_FIELD_MAP = {
     "CandidateName": "CandidateName",
     "CandidateEmail": "CandidateEmail",
     "CandidatePhone": "CandidatePhone",
-    "JobID": "JobID",
-    "JobRole": "JobRole",
     "SourceEmailID": "SourceEmailID",
     "Source": "Source",
 }

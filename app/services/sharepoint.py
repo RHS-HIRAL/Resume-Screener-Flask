@@ -149,8 +149,8 @@ class SharePointMatchScoreUpdater:
                 # 2. ONLY list PDF files
                 if not (
                     name_lower.endswith(".pdf")
-                    or name_lower.endswith(".doc")
-                    or name_lower.endswith(".docx")
+                    or name_lower.endswith("doc")
+                    or name_lower.endswith("docx")
                 ):
                     continue
                 base_name = os.path.splitext(name)[0].lower()
@@ -294,6 +294,104 @@ class SharePointMatchScoreUpdater:
         top_group = [m for m in ranked if _score(m) == top_score]
         return top_group if len(top_group) == 1 else ranked
 
+    def get_item_fields(self, item_id: str) -> dict:
+        """
+        Fetch the SharePoint listItem fields for a given drive item ID.
+        Returns the fields dict, or an empty dict on failure.
+        Used to read the Source field before deciding whether to rename.
+        """
+        drive_id = self._get_drive_id()
+        url = (
+            f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item_id}"
+            "?$expand=listItem($expand=fields)"
+        )
+        try:
+            resp = self.session.get(url, headers=self._get_headers(), timeout=30)
+            if resp.ok:
+                return (resp.json().get("listItem") or {}).get("fields", {})
+        except Exception as e:
+            print(f"[SP] get_item_fields failed for {item_id}: {e}")
+        return {}
+
+    def rename_item(self, item_id: str, new_name: str) -> tuple[str, str]:
+        """
+        Rename a SharePoint drive item by PATCHing its name property (no re-upload).
+
+        Collision handling: if new_name already exists in the same folder, a counter
+        is inserted before the job-ID suffix:
+            John_Smith_9456.pdf  →  John_Smith_2_9456.pdf  →  John_Smith_3_9456.pdf
+
+        The current item is excluded from the sibling check so we don't collide
+        with ourselves.
+
+        Returns:
+            (final_name, "OK")   on success
+            ("", error_message)  on failure
+        """
+        drive_id = self._get_drive_id()
+        headers = self._get_headers()
+
+        ext = Path(new_name).suffix  # e.g. ".pdf"
+        stem = Path(new_name).stem  # e.g. "John_Smith_9456"
+
+        # ── Fetch the item to get its parent folder ────────────────────────
+        item_resp = self.session.get(
+            f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item_id}",
+            headers=headers,
+            timeout=30,
+        )
+        if not item_resp.ok:
+            return "", f"Could not fetch item info: {item_resp.status_code}"
+
+        parent_id = item_resp.json().get("parentReference", {}).get("id", "")
+
+        # ── Collect sibling names to detect collisions ────────────────────
+        existing_names: set = set()
+        if parent_id:
+            sib_url = (
+                f"{self.GRAPH_BASE}/drives/{drive_id}/items/{parent_id}"
+                "/children?$select=id,name&$top=999"
+            )
+            sib_resp = self.session.get(sib_url, headers=headers, timeout=30)
+            if sib_resp.ok:
+                existing_names = {
+                    item["name"].lower()
+                    for item in sib_resp.json().get("value", [])
+                    if item.get("id") != item_id  # exclude the file being renamed
+                }
+
+        # ── Resolve a unique final name ────────────────────────────────────
+        final_name = new_name
+        if new_name.lower() in existing_names:
+            # Split "John_Smith_9456" → name_part="John_Smith", job_id_part="9456"
+            parts = stem.rsplit("_", 1)
+            if len(parts) == 2:
+                name_part, job_id_part = parts
+                counter = 2
+                while True:
+                    candidate = f"{name_part}_{counter}_{job_id_part}{ext}"
+                    if candidate.lower() not in existing_names:
+                        final_name = candidate
+                        break
+                    counter += 1
+            # If stem can't be split (no underscore), keep new_name as-is and
+            # let SharePoint raise the conflict — unlikely given our naming scheme.
+
+        # ── PATCH the item name ────────────────────────────────────────────
+        patch_resp = self.session.patch(
+            f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item_id}",
+            headers=headers,
+            json={"name": final_name},
+            timeout=30,
+        )
+
+        if patch_resp.ok:
+            return final_name, "OK"
+        return (
+            "",
+            f"Rename PATCH failed: {patch_resp.status_code} - {patch_resp.text[:200]}",
+        )
+
     def push_metadata(
         self,
         filename: str,
@@ -330,13 +428,13 @@ class SharePointMatchScoreUpdater:
         except Exception as e:
             print(f"[SP] Could not fetch existing fields for {filename}: {e}")
 
-        # Construct safe metadata payload
+        # Construct safe metadata payload.
+        # MatchScore and ScreenedWith are always overwritten so re-screens stay accurate.
         final_metadata = {}
         for key, value in metadata.items():
-            # If overwrite is true, or we don't have existing fields, or the field is "MatchScore" (which we purposefully update on bulk), or existing field is empty/Unknown
             if (
                 overwrite
-                or key == "MatchScore"
+                or key in ("MatchScore", "ScreenedWith")
                 or not existing_fields.get(key)
                 or existing_fields.get(key) == "Unknown"
                 or str(existing_fields.get(key)).strip() == ""
