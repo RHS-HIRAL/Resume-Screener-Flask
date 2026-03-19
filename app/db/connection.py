@@ -103,7 +103,8 @@ def init_db() -> None:
             form_responses JSONB,
             selection_status TEXT DEFAULT 'Pending',
             form_score INTEGER DEFAULT NULL,
-            qa_score INTEGER DEFAULT NULL
+            qa_score INTEGER DEFAULT NULL,
+            source TEXT
         );
         """)
 

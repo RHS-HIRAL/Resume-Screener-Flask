@@ -147,7 +147,11 @@ class SharePointMatchScoreUpdater:
                 if name_lower.startswith("jd_"):
                     continue
                 # 2. ONLY list PDF files
-                if not name_lower.endswith(".pdf"):
+                if not (
+                    name_lower.endswith(".pdf")
+                    or name_lower.endswith(".doc")
+                    or name_lower.endswith(".docx")
+                ):
                     continue
                 base_name = os.path.splitext(name)[0].lower()
 
@@ -160,6 +164,7 @@ class SharePointMatchScoreUpdater:
                         "id": f["id"],  # PDF ID -> Use this to update MatchScore
                         "name": name,  # PDF Name -> Show this in the UI
                         "match_score": match_score,
+                        "source": fields.get("Source", ""),
                         "txt_id": txt_map.get(
                             base_name
                         ),  # TXT ID -> Use this to download text for LLM

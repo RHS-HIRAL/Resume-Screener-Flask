@@ -135,6 +135,7 @@ RESUME_FIELD_MAP = {
     "JobID": "JobID",
     "JobRole": "JobRole",
     "SourceEmailID": "SourceEmailID",
+    "Source": "Source",
 }
 
 JD_FIELD_MAP = {

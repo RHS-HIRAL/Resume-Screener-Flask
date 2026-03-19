@@ -21,7 +21,7 @@ def _generate_atomic_candidate_id(cur, job_id: int) -> str:
 
 
 def save_candidate(
-    job_id: int, result: dict, resume_filename: str = "", sharepoint_link: str = ""
+    job_id: int, result: dict, resume_filename: str = "", sharepoint_link: str = "", source: str = ""
 ) -> int:
     match = result.get("function_1_resume_jd_matching", {})
     extract = result.get("function_2_resume_data_extraction", {})
@@ -61,6 +61,7 @@ def save_candidate(
                     current_title = %s, current_company = %s, total_experience = %s,
                     match_score = %s, match_breakdown = %s::jsonb,
                     sharepoint_link = COALESCE(NULLIF(%s, ''), sharepoint_link),
+                    source = COALESCE(NULLIF(%s, ''), source),
                     raw_json = %s, screened_at = NOW()
                 WHERE id = %s RETURNING id
             """,
@@ -75,6 +76,7 @@ def save_candidate(
                     match.get("overall_match_score", 0),
                     json.dumps(match_breakdown),
                     sharepoint_link,
+                    source,
                     json.dumps(result, ensure_ascii=False),
                     existing["id"],
                 ),
@@ -87,8 +89,8 @@ def save_candidate(
                 INSERT INTO candidates (
                     candidate_id, job_id, full_name, email, phone, location,
                     current_title, current_company, total_experience, match_score,
-                    match_breakdown, resume_filename, sharepoint_link, raw_json
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
+                    match_breakdown, resume_filename, sharepoint_link, raw_json, source
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s, %s)
                 RETURNING id
             """,
                 (
@@ -106,6 +108,7 @@ def save_candidate(
                     resume_filename,
                     sharepoint_link,
                     json.dumps(result, ensure_ascii=False),
+                    source,
                 ),
             )
             return cur.fetchone()["id"]
