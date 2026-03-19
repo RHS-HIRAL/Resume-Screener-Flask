@@ -164,6 +164,7 @@ class SharePointMatchScoreUpdater:
                         "id": f["id"],  # PDF ID -> Use this to update MatchScore
                         "name": name,  # PDF Name -> Show this in the UI
                         "match_score": match_score,
+                        "source": fields.get("Source", ""),
                         "txt_id": txt_map.get(
                             base_name
                         ),  # TXT ID -> Use this to download text for LLM

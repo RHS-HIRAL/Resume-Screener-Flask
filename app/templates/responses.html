@@ -370,7 +370,7 @@
 
                 row.innerHTML = `
                     <td style="padding: 1rem 1.5rem;">
-                        <input type="checkbox" class="candidate-select" data-id="${c.id}" style="cursor: pointer; width: 16px; height: 16px;">
+                        <input type="checkbox" class="candidate-check" value="${c.id}" onchange="updateSelectedCount()" style="cursor: pointer; width: 16px; height: 16px;">
                     </td>
                     <td style="padding: 1rem 1.5rem;">
                         <div class="candidate-link" style="font-weight: 600; color: var(--text-primary);" onclick='viewResponse(${candidateJson})'>${c.full_name}</div>

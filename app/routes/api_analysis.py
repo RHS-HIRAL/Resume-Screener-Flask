@@ -244,6 +244,7 @@ def api_analyze_bulk():
                         job_id=job_code,
                         result=analysis_dict,
                         resume_filename=resume_name,
+                        source=resume_info.get("source", ""),
                     )
 
                     # SP sync for non-rescored candidates only
