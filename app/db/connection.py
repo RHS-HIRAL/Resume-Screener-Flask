@@ -104,8 +104,8 @@ def init_db() -> None:
             selection_status TEXT DEFAULT 'Pending',
             form_score INTEGER DEFAULT NULL,
             qa_score INTEGER DEFAULT NULL,
-            rescore_feedback TEXT DEFAULT NULL
-            source TEXT
+            rescore_feedback TEXT DEFAULT NULL,
+            source TEXT,
         );
         """)
 
