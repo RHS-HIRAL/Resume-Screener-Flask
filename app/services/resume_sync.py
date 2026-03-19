@@ -406,6 +406,7 @@ def run_email_fetch_pipeline(auth: GraphAuthProvider) -> dict:
                 "JobID": candidate.job_id,
                 "JobRole": candidate.job_role,
                 "SourceEmailID": candidate.source_email_id,
+                "Source": "Website",
             }
 
             try:

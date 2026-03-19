@@ -170,6 +170,7 @@ def api_analyze_bulk():
                         job_id=job_code,
                         result=analysis_dict,
                         resume_filename=resume_name,
+                        source=resume_info.get("source", ""),
                     )
 
                     # 2. Sync to SP (Background) — Update the PDF file metadata

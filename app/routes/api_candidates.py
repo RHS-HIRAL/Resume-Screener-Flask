@@ -42,7 +42,7 @@ def _background_bulk_sp_push(candidates: list, status: str):
                 metadata = {"SelectionStatus": status}
                 # Role_name is fetched via JOIN in the new DB structure
                 role_name = candidate.get("role_name", "")
-                sp.push_metadata(candidate["resume_filename"], metadata, role_name)
+                sp.push_metadata(candidate["resume_filename"], metadata, role_hint=role_name, overwrite=True)
         print("[SP BULK SYNC] Completed bulk sync.")
     except Exception as e:
         print(f"[SP BULK SYNC ERROR] {e}")
@@ -56,7 +56,7 @@ def _background_bulk_sp_push(candidates: list, status: str):
 @api_candidates_bp.route("/api/candidates")
 @login_required
 def api_list_candidates():
-    min_score = request.args.get("min_score", 40, type=int)
+    min_score = request.args.get("min_score", 0, type=int)
     role = request.args.get("role", "")
 
     candidates = get_all_candidates(min_score=min_score)
