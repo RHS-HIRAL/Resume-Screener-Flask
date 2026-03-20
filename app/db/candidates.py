@@ -392,3 +392,130 @@ def delete_candidates_by_ids(candidate_ids: list[int]) -> tuple[int, list[dict]]
         deleted = cur.rowcount
 
     return deleted, rows
+import re
+
+def _format_role_display(role_name: str) -> str:
+    """Convert '8977_Full_Stack_Development_Intern' → 'Full Stack Development Intern'."""
+    name = re.sub(r'^\d+_', '', role_name)
+    return name.replace('_', ' ')
+
+
+def get_roles_with_selected_candidates() -> list:
+    with get_cursor() as cur:
+        cur.execute("""
+            SELECT DISTINCT j.id, j.role_name
+            FROM candidates c
+            JOIN jobs j ON c.job_id = j.id
+            WHERE LOWER(c.selection_status) = 'selected'
+            ORDER BY j.role_name
+        """)
+        rows = cur.fetchall()
+    return [
+        {"id": r["id"], "role_name": r["role_name"],
+         "display_name": _format_role_display(r["role_name"])}
+        for r in rows
+    ]
+
+
+def get_selected_candidates_for_role(job_id: int) -> list:
+    with get_cursor() as cur:
+        cur.execute("""
+            SELECT id, candidate_id, full_name
+            FROM candidates
+            WHERE job_id = %s AND LOWER(selection_status) = 'selected'
+            ORDER BY full_name ASC
+        """, (job_id,))
+        return [dict(r) for r in cur.fetchall()]
+
+
+def get_candidate_full_profile(candidate_id: int) -> Optional[dict]:
+    with get_cursor() as cur:
+        cur.execute("""
+            SELECT c.*, j.role_name
+            FROM candidates c
+            JOIN jobs j ON c.job_id = j.id
+            WHERE c.id = %s
+        """, (candidate_id,))
+        row = cur.fetchone()
+
+    if not row:
+        return None
+
+    data = dict(row)
+
+    raw = data.get("raw_json") or "{}"
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (json.JSONDecodeError, TypeError):
+            raw = {}
+
+    extraction = raw.get("function_2_resume_data_extraction", {})
+    career = extraction.get("career_metrics", {})
+    edu_history = extraction.get("education_history", [])
+    degrees = [e.get("degree", "") for e in edu_history if e.get("degree")]
+
+    form = data.get("form_responses") or {}
+    if isinstance(form, str):
+        try:
+            form = json.loads(form)
+        except (json.JSONDecodeError, TypeError):
+            form = {}
+
+    return {
+        "id": data["id"],
+        "candidate_id": data.get("candidate_id", ""),
+        "position_applied": _format_role_display(data.get("role_name", "")),
+        "full_name": data.get("full_name", ""),
+        "phone": data.get("phone", ""),
+        "email": data.get("email", ""),
+        "education": degrees,
+        "total_experience": data.get("total_experience"),
+        "relative_experience": career.get("relative_years_of_experience"),
+        "current_company": data.get("current_company", ""),
+        "current_title": data.get("current_title", ""),
+        "technical_skills": career.get("technical_skills", []),
+        "certifications": career.get("certificates_name", []),
+        "current_location": form.get("Current Location", ""),
+        "relocation": form.get("Willing to Relocate?", ""),
+        "notice_period": form.get("Notice Period", ""),
+        "source": data.get("source", ""),
+        "ta_spoc": data.get("ta_spoc", "") or "",
+        "native_location": data.get("native_location", "") or "",
+        "offer_in_hand": data.get("offer_in_hand", "") or "",
+        "shift_flexibility": data.get("shift_flexibility", "") or "",
+        "reason_for_change": data.get("reason_for_change", "") or "",
+        "ta_hr_comments": data.get("ta_hr_comments", "") or "",
+        "offer_details": data.get("offer_details", "") or "",
+        "doj": data.get("doj", "") or "",
+        "name_of_source": data.get("name_of_source", "") or "",
+    }
+
+
+def update_candidate_hr_fields(candidate_id: int, hr_data: dict) -> bool:
+    with get_cursor(commit=True) as cur:
+        cur.execute("""
+            UPDATE candidates SET
+                ta_spoc            = %s,
+                native_location    = %s,
+                offer_in_hand      = %s,
+                shift_flexibility  = %s,
+                reason_for_change  = %s,
+                ta_hr_comments     = %s,
+                offer_details      = %s,
+                doj                = %s,
+                name_of_source     = %s
+            WHERE id = %s
+        """, (
+            hr_data.get("ta_spoc") or None,
+            hr_data.get("native_location") or None,
+            hr_data.get("offer_in_hand") or None,
+            hr_data.get("shift_flexibility") or None,
+            hr_data.get("reason_for_change") or None,
+            hr_data.get("ta_hr_comments") or None,
+            hr_data.get("offer_details") or None,
+            hr_data.get("doj") or None,
+            hr_data.get("name_of_source") or None,
+            candidate_id,
+        ))
+        return cur.rowcount > 0
