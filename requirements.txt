@@ -9,6 +9,9 @@ psycopg2-binary>=2.9.0       # PostgreSQL driver (binary wheel, no build deps ne
 # ── Configuration ─────────────────────────────────────────────────────────────
 python-dotenv>=1.0.0
 
+# ── AI — Groq Question autodetect ─────────────────────────────────────────────
+groq>=0.9.0
+
 # ── AI — Google Gemini ────────────────────────────────────────────────────────
 # IMPORTANT: The code uses `import google.genai as genai` (new unified SDK).
 # This is the `google-genai` package — NOT the old `google-generativeai` package.
@@ -34,5 +37,5 @@ pydantic[email]>=2.0.0       # [email] extra enables EmailStr validator
 # ── Security ──────────────────────────────────────────────────────────────────
 Werkzeug>=3.0.0              # Password hashing (generate_password_hash / check_password_hash)
 
-# PDF Generation
+# ── PDF Generation ────────────────────────────────────────────────────────────
 reportlab
