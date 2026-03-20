@@ -18,7 +18,7 @@ class Config:
     PG_USER = os.getenv("PG_USER", "postgres")
     PG_PASSWORD = os.getenv("PG_PASSWORD", "")
 
-    # API Keys
+    # API Keys — Google Gemini (up to 10 keys, round-robin fallback)
     GOOGLE_API_KEYS = [
         key
         for key in [
@@ -26,10 +26,23 @@ class Config:
         ]
         if key
     ]
+
+    # API Keys — Sarvam STT (up to 2 keys)
     SARVAM_API_KEYS = [
         key
         for key in [
             os.getenv(f"SARVAM_API_KEY{i if i > 1 else ''}", "") for i in range(1, 3)
+        ]
+        if key
+    ]
+
+    # API Keys — Groq compound models (up to 4 keys, round-robin fallback)
+    # Each key is tried with compound-beta first, then compound-beta-mini.
+    # Env vars: GROQ_API_KEY, GROQ_API_KEY2, GROQ_API_KEY3, … GROQ_API_KEY4
+    GROQ_API_KEYS = [
+        key
+        for key in [
+            os.getenv(f"GROQ_API_KEY{i if i > 1 else ''}", "") for i in range(1, 5)
         ]
         if key
     ]
@@ -48,7 +61,6 @@ class Config:
     SHAREPOINT_SITE_DOMAIN = os.getenv("SHAREPOINT_SITE_DOMAIN")
     SHAREPOINT_SITE_PATH = os.getenv("SHAREPOINT_SITE_PATH")
     SHAREPOINT_DRIVE_NAME = os.getenv("SHAREPOINT_DRIVE_NAME")
-    # Unified folder — all job-role data (resumes, JDs, text files) lives here
     SHAREPOINT_JOBS_FOLDER = os.getenv("SHAREPOINT_JOBS_FOLDER", "JobRoles Data")
     MAILBOX_USER = os.getenv("MAILBOX_USER", "")
 
@@ -63,7 +75,7 @@ class Config:
     ]
     SYNC_TEMP_RESUMES_DIR = os.getenv("SYNC_TEMP_RESUMES_DIR", "./tmp_resumes")
     SYNC_TEMP_JD_DIR = os.getenv("SYNC_TEMP_JD_DIR", "./tmp_job_descriptions")
-    SYNC_LAST_SYNC_FILE = os.getenv("SYNC_LAST_SYNC_FILE", "data/last_sync.json")
+    SYNC_LAST_SYNC_FILE = os.getenv("SYNC_LAST_SYNC_FILE", "data_folder/last_sync.json")
     CAREERS_URL = os.getenv("CAREERS_URL", "https://si2tech.com/jobs/")
     SITE_BASE_URL = os.getenv("SITE_BASE_URL", "https://si2tech.com")
     TEAMS_WEBHOOK_URL = os.getenv("TEAMS_WEBHOOK_URL", "")

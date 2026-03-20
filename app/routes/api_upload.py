@@ -1,4 +1,4 @@
-# app/routes/api_upload.py — API endpoints for manual resume upload
+# app/routes/api_upload.py — API endpoints for manual resume upload with required source validation
 
 import os
 import shutil
@@ -21,13 +21,17 @@ def get_subfolders():
     try:
         sp = SharePointMatchScoreUpdater()
         jobs_folder = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
-        
+
         # Use existing protected method to list children of a folder
         items = sp._list_folder_children(jobs_folder)
-        
+
         # Filter for folders only
-        folders = [{"id": item["id"], "name": item["name"]} for item in items if "folder" in item]
-        
+        folders = [
+            {"id": item["id"], "name": item["name"]}
+            for item in items
+            if "folder" in item
+        ]
+
         return jsonify({"success": True, "folders": folders})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -37,7 +41,7 @@ def get_subfolders():
 @login_required
 def manual_upload():
     """
-    Handle manual upload of multiple resumes.
+    Handle manual upload of multiple resumes with REQUIRED source selection.
     For each resume:
       - convert to TXT
       - if success: upload PDF/Docx + TXT to SHAREPOINT_JOBS_FOLDER/<subfolder>
@@ -55,14 +59,31 @@ def manual_upload():
     if not files or all(f.filename == "" for f in files):
         return jsonify({"success": False, "error": "No selected files"}), 400
 
+    # BACKEND VALIDATION: Ensure all files have a source
+    missing_sources = []
+    for file in files:
+        if file.filename == "":
+            continue
+        source_value = request.form.get(f"source_{file.filename}", "").strip()
+        if not source_value:
+            missing_sources.append(file.filename)
+
+    if missing_sources:
+        return jsonify(
+            {
+                "success": False,
+                "error": f"Source is required for all resumes. Missing source for: {', '.join(missing_sources[:3])}{'...' if len(missing_sources) > 3 else ''}",
+            }
+        ), 400
+
     sp = SharePointMatchScoreUpdater()
     jobs_base = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
     sp_dest_folder = f"{jobs_base}/{target_folder}"
-    
+
     # Extract job_id from target_folder (e.g., '9456' from '9456_Jira_Developer')
     job_id = target_folder.split("_")[0] if "_" in target_folder else "unknown"
-    
-    # NEW logic: corrupted folder is in the main jobs folder, not inside the subfolder
+
+    # Corrupted folder is in the main jobs folder, not inside the subfolder
     sp_corrupted_folder = f"{jobs_base}/corrupted folder"
 
     # Temporary local directory for processing
@@ -79,12 +100,16 @@ def manual_upload():
 
             orig_stem = Path(file.filename).stem
             orig_ext = Path(file.filename).suffix
-            
+
             # Renaming logic: original_name_job_id.ext
             renamed_basename = f"{orig_stem}_{job_id}"
             renamed_filename = f"{renamed_basename}{orig_ext}"
-            
-            source_value = request.form.get(f"source_{file.filename}", "")
+
+            # Get and validate source (already validated above, but double-check)
+            source_value = request.form.get(f"source_{file.filename}", "").strip()
+            if not source_value:
+                print(f"[ManualUpload] Skipping {file.filename} - no source provided")
+                continue
 
             local_file_path = tmp_dir / renamed_filename
             file.save(local_file_path)
@@ -101,33 +126,35 @@ def manual_upload():
 
                 if is_corrupted:
                     # 2b. Corrupted: Upload renamed original to corrupted folder in JOBS root
-                    sp_item_id = sp.upload_file(sp_corrupted_folder, renamed_filename, file_bytes)
-                    
-                    # 3b. Push Metadata to corrupted file
-                    if source_value:
-                        sp.push_metadata(
-                            filename=renamed_filename,
-                            metadata={"Source": source_value},
-                            confirmed_item_id=sp_item_id,
-                            overwrite=True
-                        )
+                    sp_item_id = sp.upload_file(
+                        sp_corrupted_folder, renamed_filename, file_bytes
+                    )
+
+                    # 3b. Push Metadata to corrupted file (including required Source)
+                    sp.push_metadata(
+                        filename=renamed_filename,
+                        metadata={"Source": source_value},
+                        confirmed_item_id=sp_item_id,
+                        overwrite=True,
+                    )
                     corrupted_count += 1
                 else:
                     # 2a. Success: Upload renamed original to destination folder
-                    sp_item_id = sp.upload_file(sp_dest_folder, renamed_filename, file_bytes)
-                    
+                    sp_item_id = sp.upload_file(
+                        sp_dest_folder, renamed_filename, file_bytes
+                    )
+
                     # Upload TXT file to destination folder (also renamed)
                     txt_filename = f"{renamed_basename}.txt"
                     sp.upload_file(sp_dest_folder, txt_filename, text_content)
 
-                    # 3a. Push Metadata only to the renamed original PDF/Docx
-                    if source_value:
-                        sp.push_metadata(
-                            filename=renamed_filename,
-                            metadata={"Source": source_value},
-                            confirmed_item_id=sp_item_id,
-                            overwrite=True
-                        )
+                    # 3a. Push Metadata only to the renamed original PDF/Docx (including required Source)
+                    sp.push_metadata(
+                        filename=renamed_filename,
+                        metadata={"Source": source_value},
+                        confirmed_item_id=sp_item_id,
+                        overwrite=True,
+                    )
                     success_count += 1
 
             except Exception as e:
@@ -142,8 +169,10 @@ def manual_upload():
         # Clean up tmp directory
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    return jsonify({
-        "success": True, 
-        "success_count": success_count, 
-        "corrupted_count": corrupted_count
-    })
+    return jsonify(
+        {
+            "success": True,
+            "success_count": success_count,
+            "corrupted_count": corrupted_count,
+        }
+    )
