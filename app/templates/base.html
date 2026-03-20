@@ -70,6 +70,13 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="{{ url_for('views.candidate_information') }}"
+                        class="nav-link {% if request.endpoint == 'views.candidate_information' %}active{% endif %}">
+                        <i class="fa-solid fa-address-card"></i>
+                        <span>Candidate Profile</span>
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="{{ url_for('api_qa.qa_page') }}"
                         class="nav-link {% if request.endpoint == 'qa_page' %}active{% endif %}">
                         <i class="fa-solid fa-microphone-lines"></i>

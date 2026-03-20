@@ -104,7 +104,7 @@ def init_db() -> None:
             selection_status TEXT DEFAULT 'Pending',
             form_score INTEGER DEFAULT NULL,
             qa_score INTEGER DEFAULT NULL,
-            rescore_feedback TEXT DEFAULT NULL
+            rescore_feedback TEXT DEFAULT NULL,
             source TEXT
         );
         """)
@@ -113,6 +113,21 @@ def init_db() -> None:
         cur.execute("""
         ALTER TABLE candidates ADD COLUMN IF NOT EXISTS rescore_feedback TEXT DEFAULT NULL;
         """)
+
+        # 4c. HR additional info columns (safe migration)
+        hr_columns = [
+            "ta_spoc TEXT",
+            "native_location TEXT",
+            "offer_in_hand TEXT",
+            "shift_flexibility TEXT",
+            "reason_for_change TEXT",
+            "ta_hr_comments TEXT",
+            "offer_details TEXT",
+            "doj TEXT",
+            "name_of_source TEXT",
+        ]
+        for col_def in hr_columns:
+            cur.execute(f"ALTER TABLE candidates ADD COLUMN IF NOT EXISTS {col_def};")
 
         # 5. Call QA Results (Optimized: FK points to candidate.id, not textual ID)
         cur.execute("""

@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal, Optional, Annotated
 from pydantic import BaseModel, Field
 
 
@@ -41,7 +41,9 @@ class Employment(BaseModel):
 class CareerMetrics(BaseModel):
     total_experience_in_years: float = Field(ge=0.0)
     total_jobs: int = Field(ge=0)
-
+    technical_skills: Annotated[list[str], Field(default_factory=list, description="List of technical skills and tools identified in the resume.")]
+    certificates_name: Annotated[list[str], Field(default_factory=list, description="List of professional certifications and certificate names mentioned in the resume.")]
+    relative_years_of_experience: Annotated[int, Field(description="The total number of years of experience the candidate has that are directly relevant to the target job role (as an integer).")]
 
 class Socials(BaseModel):
     # All social links are Optional — most resumes will not have all three

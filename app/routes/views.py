@@ -73,3 +73,8 @@ def responses():
         logging.error(f"[VIEWS ERROR] Failed to load roles for responses: {e}")
         flash("Unable to load job roles.", "danger")
         return render_template("responses.html", roles=[])
+
+@views_bp.route("/candidate-information")
+@login_required
+def candidate_information():
+    return render_template("candidate_information.html")

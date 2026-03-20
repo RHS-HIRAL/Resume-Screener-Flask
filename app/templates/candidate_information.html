@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+{% block title %}Candidate Information | Resume Screener{% endblock %}
+
+{% block content %}
+<style>
+/* ── Page-level overrides ─────────────────────────────────────── */
+.ci-filter-bar {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+}
+.ci-filter-bar .form-group { margin-bottom: 0; }
+.ci-filter-bar select  { min-width: 240px; }
+
+/* ── Two-column layout ───────────────────────────────────────── */
+.ci-grid {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 1.5rem;
+    align-items: start;
+}
+@media (max-width: 1024px) { .ci-grid { grid-template-columns: 1fr; } }
+
+/* ── Detail table ────────────────────────────────────────────── */
+.ci-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+}
+.ci-table tr { border-bottom: 1px solid var(--border-color); }
+.ci-table tr:last-child { border-bottom: none; }
+.ci-table td {
+    padding: 0.55rem 0.9rem;
+    vertical-align: middle;
+}
+.ci-table td:first-child {
+    width: 38%;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: rgba(0,0,0,0.015);
+}
+.ci-table td:last-child {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+.ci-table tr:hover td { background: rgba(6,182,212,0.03); }
+
+/* ── Section divider inside table ───────────────────────────── */
+.ci-section-header td {
+    padding: 0.45rem 0.9rem;
+    background: rgba(6,182,212,0.07) !important;
+    font-size: 0.7rem !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    color: var(--accent-indigo) !important;
+    border-bottom: 1px solid rgba(6,182,212,0.15) !important;
+}
+.ci-section-header td:last-child { background: rgba(6,182,212,0.07) !important; }
+
+/* ── Chips ───────────────────────────────────────────────────── */
+.chip-wrap { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.chip {
+    display: inline-block;
+    padding: 0.18rem 0.55rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: rgba(6,182,212,0.1);
+    color: var(--accent-indigo);
+    border: 1px solid rgba(6,182,212,0.2);
+    white-space: nowrap;
+}
+.chip.cert {
+    background: rgba(16,185,129,0.08);
+    color: var(--accent-emerald);
+    border-color: rgba(16,185,129,0.2);
+}
+.chip-empty { color: var(--text-secondary); font-style: italic; font-size: 0.78rem; }
+
+/* ── HR form ─────────────────────────────────────────────────── */
+.hr-form-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.3rem;
+    display: block;
+}
+.hr-form-input {
+    width: 100%;
+    background: #f1f5f9;
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    padding: 0.5rem 0.75rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.83rem;
+    outline: none;
+    transition: border-color 0.15s;
+    resize: vertical;
+}
+.hr-form-input:focus { border-color: var(--accent-indigo); background: #fff; }
+.hr-form-group { margin-bottom: 0.85rem; }
+
+/* ── Save button states ──────────────────────────────────────── */
+.btn-save-hr {
+    width: 100%;
+    margin-top: 0.5rem;
+    background: linear-gradient(135deg, #06b6d4, #22d3ee);
+    color: #fff;
+    border: none;
+    border-radius: 9px;
+    padding: 0.65rem;
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    box-shadow: 0 4px 14px rgba(6,182,212,0.25);
+    transition: all 0.2s;
+}
+.btn-save-hr:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(6,182,212,0.35); }
+.btn-save-hr:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+/* ── Empty / loading states ─────────────────────────────────── */
+.ci-empty {
+    padding: 4rem 2rem;
+    text-align: center;
+    color: var(--text-secondary);
+}
+.ci-empty i { font-size: 2.5rem; opacity: 0.18; margin-bottom: 1rem; display: block; }
+
+/* ── Card header strip ───────────────────────────────────────── */
+.ci-card-head {
+    padding: 0.9rem 1.2rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+.ci-card-head h3 { font-size: 0.92rem; font-weight: 700; margin: 0; }
+.ci-card-head .badge-role {
+    margin-left: auto;
+    padding: 0.18rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    background: rgba(6,182,212,0.1);
+    color: var(--accent-indigo);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+/* ── Toast ────────────────────────────────────────────────────── */
+#ci-toast {
+    position: fixed;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: rgba(16,185,129,0.15);
+    border: 1px solid rgba(16,185,129,0.4);
+    color: var(--accent-emerald);
+    padding: 0.7rem 1.4rem;
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    z-index: 9999;
+    backdrop-filter: blur(10px);
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    opacity: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+#ci-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+#ci-toast.error {
+    background: rgba(248,113,113,0.12);
+    border-color: rgba(248,113,113,0.35);
+    color: var(--accent-rose);
+}
+</style>
+
+<!-- Toast -->
+<div id="ci-toast"><i class="fa-solid fa-circle-check"></i><span id="ci-toast-msg">Saved.</span></div>
+
+<div class="page-header">
+    <h1 class="page-title">Candidate Profile</h1>
+    <p class="page-subtitle">View complete candidate profile and add HR notes for selected candidates.</p>
+</div>
+
+<!-- Filter bar -->
+<div class="card ci-filter-bar" style="padding: 1rem 1.5rem;">
+    <div class="form-group">
+        <label class="form-label">Role</label>
+        <select id="ci-role-select" class="form-control" onchange="onRoleChange()">
+            <option value="">— Select Role —</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label class="form-label">Candidate</label>
+        <select id="ci-candidate-select" class="form-control" onchange="onCandidateChange()" disabled>
+            <option value="">— Select Candidate —</option>
+        </select>
+    </div>
+    <div id="ci-meta-chip" style="display:none; margin-left: auto; align-self: flex-end; padding-bottom: 0.1rem;">
+        <span id="ci-status-badge" style="padding: 0.25rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: rgba(16,185,129,0.1); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.2);">
+            <i class="fa-solid fa-circle-check"></i> Selected
+        </span>
+    </div>
+</div>
+
+<!-- Main grid -->
+<div class="ci-grid" id="ci-main-grid">
+    <!-- Left: Candidate Details -->
+    <div class="card" style="padding: 0; overflow: hidden;" id="ci-details-card">
+        <div class="ci-card-head">
+            <i class="fa-solid fa-id-card" style="color: var(--accent-indigo);"></i>
+            <h3>Candidate Details</h3>
+            <span class="badge-role" id="ci-role-badge" style="display:none;"></span>
+        </div>
+        <div id="ci-details-body">
+            <div class="ci-empty">
+                <i class="fa-solid fa-user-magnifying-glass"></i>
+                <p style="font-size:0.88rem;">Select a role and candidate to view details.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: HR Details -->
+    <div class="card" style="padding: 0; overflow: hidden;" id="ci-hr-card">
+        <div class="ci-card-head">
+            <i class="fa-solid fa-clipboard-user" style="color: var(--accent-emerald);"></i>
+            <h3>HR Additional Details</h3>
+        </div>
+        <div style="padding: 1rem 1.2rem;" id="ci-hr-body">
+            <div class="ci-empty" style="padding: 3rem 1rem;">
+                <i class="fa-solid fa-pen-to-square"></i>
+                <p style="font-size:0.85rem;">HR fields will appear after selecting a candidate.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let currentCandidateId = null;
+const STORAGE_KEY_ROLE = 'ci_last_role';
+const STORAGE_KEY_CANDIDATE = 'ci_last_candidate';
+
+// ── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+    await loadRoles();
+    const savedRole = localStorage.getItem(STORAGE_KEY_ROLE);
+    const savedCandidate = localStorage.getItem(STORAGE_KEY_CANDIDATE);
+    if (savedRole) {
+        const sel = document.getElementById('ci-role-select');
+        if ([...sel.options].some(o => o.value === savedRole)) {
+            sel.value = savedRole;
+            await onRoleChange(true);
+            if (savedCandidate) {
+                const cSel = document.getElementById('ci-candidate-select');
+                if ([...cSel.options].some(o => o.value === savedCandidate)) {
+                    cSel.value = savedCandidate;
+                    await onCandidateChange();
+                }
+            }
+        }
+    }
+}
+
+// ── Load Roles ─────────────────────────────────────────────────────────────
+async function loadRoles() {
+    try {
+        const res = await fetch('/api/candidate-info/roles');
+        const data = await res.json();
+        const sel = document.getElementById('ci-role-select');
+        sel.innerHTML = '<option value="">— Select Role —</option>';
+        (data.roles || []).forEach(r => {
+            const opt = document.createElement('option');
+            opt.value = r.id;
+            opt.dataset.name = r.display_name;
+            opt.textContent = r.display_name;
+            sel.appendChild(opt);
+        });
+    } catch (e) {
+        console.error('Failed to load roles', e);
+    }
+}
+
+// ── Role change ────────────────────────────────────────────────────────────
+async function onRoleChange(silent = false) {
+    const roleSel = document.getElementById('ci-role-select');
+    const candSel = document.getElementById('ci-candidate-select');
+    const jobId = roleSel.value;
+
+    candSel.innerHTML = '<option value="">— Select Candidate —</option>';
+    candSel.disabled = true;
+    if (!silent) {
+        localStorage.setItem(STORAGE_KEY_ROLE, jobId);
+        localStorage.removeItem(STORAGE_KEY_CANDIDATE);
+    }
+    resetPanels();
+
+    if (!jobId) return;
+
+    try {
+        const res = await fetch(`/api/candidate-info/by-role/${jobId}`);
+        const data = await res.json();
+        (data.candidates || []).forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.full_name;
+            candSel.appendChild(opt);
+        });
+        candSel.disabled = false;
+    } catch (e) {
+        console.error('Failed to load candidates', e);
+    }
+}
+
+// ── Candidate change ───────────────────────────────────────────────────────
+async function onCandidateChange() {
+    const candSel = document.getElementById('ci-candidate-select');
+    const id = parseInt(candSel.value);
+    if (!id) { resetPanels(); return; }
+
+    currentCandidateId = id;
+    localStorage.setItem(STORAGE_KEY_CANDIDATE, id);
+
+    // Loading state
+    document.getElementById('ci-details-body').innerHTML = `
+        <div class="ci-empty"><i class="fa-solid fa-spinner fa-spin" style="opacity:0.5;"></i>
+        <p style="font-size:0.85rem;">Loading profile…</p></div>`;
+    document.getElementById('ci-hr-body').innerHTML = `
+        <div class="ci-empty" style="padding:2rem 1rem;"><i class="fa-solid fa-spinner fa-spin" style="opacity:0.5;"></i></div>`;
+
+    try {
+        const res = await fetch(`/api/candidate-info/${id}`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        renderProfile(data.profile);
+    } catch (e) {
+        document.getElementById('ci-details-body').innerHTML =
+            `<div class="ci-empty"><i class="fa-solid fa-triangle-exclamation" style="color:var(--accent-rose);opacity:0.6;"></i>
+             <p style="color:var(--accent-rose);font-size:0.85rem;">${e.message}</p></div>`;
+    }
+}
+
+// ── Reset panels ───────────────────────────────────────────────────────────
+function resetPanels() {
+    currentCandidateId = null;
+    document.getElementById('ci-details-body').innerHTML = `
+        <div class="ci-empty"><i class="fa-solid fa-user-magnifying-glass"></i>
+        <p style="font-size:0.88rem;">Select a role and candidate to view details.</p></div>`;
+    document.getElementById('ci-hr-body').innerHTML = `
+        <div class="ci-empty" style="padding:3rem 1rem;"><i class="fa-solid fa-pen-to-square"></i>
+        <p style="font-size:0.85rem;">HR fields will appear after selecting a candidate.</p></div>`;
+    document.getElementById('ci-role-badge').style.display = 'none';
+    document.getElementById('ci-meta-chip').style.display = 'none';
+}
+
+// ── Render profile ─────────────────────────────────────────────────────────
+function renderProfile(p) {
+    // Role badge in card header
+    const roleBadge = document.getElementById('ci-role-badge');
+    roleBadge.textContent = p.position_applied || '—';
+    roleBadge.style.display = 'inline-block';
+
+    // Meta chip in filter bar
+    document.getElementById('ci-meta-chip').style.display = 'flex';
+
+    // ── Candidate Details Table ──────────────────────────────────────────
+    const val = v => v !== null && v !== undefined && v !== '' ? v : '<span style="color:var(--text-secondary);font-style:italic;font-size:0.77rem;">—</span>';
+
+    const skillChips = chips => {
+        const arr = Array.isArray(chips) ? chips.filter(Boolean) : [];
+        if (!arr.length) return '<span class="chip-empty">—</span>';
+        return `<div class="chip-wrap">${arr.map(s => `<span class="chip">${escHtml(s)}</span>`).join('')}</div>`;
+    };
+    const certChips = certs => {
+        const arr = Array.isArray(certs) ? certs.filter(Boolean) : [];
+        if (!arr.length) return '<span class="chip-empty">—</span>';
+        return `<div class="chip-wrap">${arr.map(c => `<span class="chip cert">${escHtml(c)}</span>`).join('')}</div>`;
+    };
+    const eduVal = () => {
+        const arr = Array.isArray(p.education) ? p.education.filter(Boolean) : [];
+        return arr.length ? escHtml(arr.join(' · ')) : '<span style="color:var(--text-secondary);font-style:italic;font-size:0.77rem;">—</span>';
+    };
+
+    const rows = [
+        { section: '📋 Position & Identity' },
+        { label: 'Position Applied',   value: val(escHtml(p.position_applied)) },
+        { label: 'Candidate Name',     value: val(escHtml(p.full_name)) },
+        { label: 'Contact No.',        value: val(escHtml(p.phone)) },
+        { label: 'Email ID',           value: val(escHtml(p.email)) },
+        { section: '🎓 Background' },
+        { label: 'Education',          value: eduVal() },
+        { label: 'Current Organisation', value: val(escHtml(p.current_company)) },
+        { label: 'Current Designation', value: val(escHtml(p.current_title)) },
+        { section: '⏱ Experience' },
+        { label: 'Total Exp (yrs)',    value: val(p.total_experience != null ? p.total_experience + ' yrs' : null) },
+        { label: 'Rel. Exp (yrs)',     value: val(p.relative_experience != null ? p.relative_experience + ' yrs' : null) },
+        { section: '🔧 Skills & Certs' },
+        { label: 'Technical Skills',   value: skillChips(p.technical_skills), raw: true },
+        { label: 'Certifications',     value: certChips(p.certifications), raw: true },
+        { section: '📍 Availability' },
+        { label: 'Current Location',   value: val(escHtml(p.current_location)) },
+        { label: 'Relocation',         value: val(escHtml(p.relocation)) },
+        { label: 'Notice Period',      value: val(escHtml(p.notice_period)) },
+        { label: 'Resume Source',      value: val(escHtml(p.source)) },
+    ];
+
+    let tableHtml = '<table class="ci-table">';
+    rows.forEach(r => {
+        if (r.section) {
+            tableHtml += `<tr class="ci-section-header"><td colspan="2">${r.section}</td></tr>`;
+        } else {
+            tableHtml += `<tr><td>${r.label}</td><td>${r.value}</td></tr>`;
+        }
+    });
+    tableHtml += '</table>';
+    document.getElementById('ci-details-body').innerHTML = tableHtml;
+
+    // ── HR Form ──────────────────────────────────────────────────────────
+    const hrFields = [
+        { key: 'ta_spoc',          label: 'TA SPOC',            type: 'input',    placeholder: 'Name of TA assigning this candidate' },
+        { key: 'native_location',  label: 'Native Location',    type: 'input',    placeholder: 'Hometown / native city' },
+        { key: 'offer_in_hand',    label: 'Offer in Hand',      type: 'input',    placeholder: 'e.g. Yes – ₹8 LPA from XYZ' },
+        { key: 'shift_flexibility',label: 'Shift Flexibility',  type: 'input',    placeholder: 'e.g. Flexible / Day only / Night ok' },
+        { key: 'reason_for_change',label: 'Reason for Change',  type: 'textarea', placeholder: 'Why is the candidate looking for a change?' },
+        { key: 'ta_hr_comments',   label: 'TA / HR Comments',   type: 'textarea', placeholder: 'Any internal notes or observations…' },
+        { key: 'offer_details',    label: 'Offer Details',      type: 'textarea', placeholder: 'CTC, designation, perks, etc.' },
+        { key: 'doj',              label: 'Date of Joining',    type: 'input',    placeholder: 'e.g. 2025-08-01 or ASAP' },
+        { key: 'name_of_source',   label: 'Name of Source',     type: 'input',    placeholder: 'Referral name / job portal source' },
+    ];
+
+    let formHtml = '';
+    hrFields.forEach(f => {
+        const currentVal = escHtml(p[f.key] || '');
+        if (f.type === 'textarea') {
+            formHtml += `
+            <div class="hr-form-group">
+                <label class="hr-form-label">${f.label}</label>
+                <textarea id="hr_${f.key}" class="hr-form-input" rows="2"
+                    placeholder="${f.placeholder}">${currentVal}</textarea>
+            </div>`;
+        } else {
+            formHtml += `
+            <div class="hr-form-group">
+                <label class="hr-form-label">${f.label}</label>
+                <input type="text" id="hr_${f.key}" class="hr-form-input"
+                    value="${currentVal}" placeholder="${f.placeholder}">
+            </div>`;
+        }
+    });
+
+    formHtml += `
+        <button class="btn-save-hr" id="ci-save-btn" onclick="saveHR()">
+            <i class="fa-solid fa-floppy-disk"></i> Save HR Details
+        </button>`;
+
+    document.getElementById('ci-hr-body').innerHTML = `<div style="padding: 1rem 1.2rem;">${formHtml}</div>`;
+}
+
+// ── Save HR fields ─────────────────────────────────────────────────────────
+async function saveHR() {
+    if (!currentCandidateId) return;
+    const btn = document.getElementById('ci-save-btn');
+    if (!btn) return;
+
+    const keys = ['ta_spoc','native_location','offer_in_hand','shift_flexibility',
+                  'reason_for_change','ta_hr_comments','offer_details','doj','name_of_source'];
+    const payload = {};
+    keys.forEach(k => {
+        const el = document.getElementById(`hr_${k}`);
+        payload[k] = el ? el.value.trim() : '';
+    });
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+
+    try {
+        const res = await fetch(`/api/candidate-info/${currentCandidateId}/hr`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('HR details saved successfully!', false);
+        } else {
+            showToast('Save failed: ' + (data.error || 'Unknown error'), true);
+        }
+    } catch (e) {
+        showToast('Network error: ' + e.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save HR Details';
+    }
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function showToast(msg, isError = false) {
+    const el = document.getElementById('ci-toast');
+    const msgEl = document.getElementById('ci-toast-msg');
+    el.classList.remove('show', 'error');
+    if (isError) el.classList.add('error');
+    el.querySelector('i').className = isError ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-circle-check';
+    msgEl.textContent = msg;
+    void el.offsetWidth; // reflow
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── Escape HTML ────────────────────────────────────────────────────────────
+function escHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+init();
+</script>
+{% endblock %}
