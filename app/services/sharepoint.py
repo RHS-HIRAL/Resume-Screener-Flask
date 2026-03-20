@@ -235,7 +235,6 @@ class SharePointMatchScoreUpdater:
         else:
             return content.decode("utf-8", errors="replace")
 
-    # Check if unused function
     def find_txt_version(self, folder_name: str, original_filename: str) -> dict | None:
         """Find the corresponding .txt file in the same job-role folder."""
         from pathlib import Path

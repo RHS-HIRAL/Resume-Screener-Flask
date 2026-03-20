@@ -70,52 +70,94 @@ def _background_sp_push(
     job_code: int = None,
 ):
     """
-    Thread target: push metadata to SharePoint then — for non-Website resumes —
-    rename the file to '<CandidateName>_<job_code>.<ext>' and sync the new name
-    to the database.
+    Thread target: push metadata to SharePoint then — for non-Website resumes
+    whose MatchScore was previously blank — rename the PDF/DOCX and its paired
+    .txt file to '<CandidateName>_<job_code>.<ext>' and sync the new name to
+    the database.
     """
     with app.app_context():
         try:
             sp = SharePointMatchScoreUpdater()
 
-            # 1. Push metadata (MatchScore, CandidateName, ScreenedWith, …)
+            # 1. Fetch existing fields BEFORE pushing new metadata so we can
+            #    check the original MatchScore and Source values.
+            fields = sp.get_item_fields(item_id) if item_id else {}
+            source = (fields.get("Source") or "").strip().lower()
+            existing_score = fields.get("MatchScore")
+            # Consider blank if the field is missing, empty-string, or zero.
+            is_blank_score = (
+                existing_score is None
+                or str(existing_score).strip() == ""
+                or existing_score == 0
+            )
+
+            # 2. Push metadata (MatchScore, CandidateName, ScreenedWith, …)
             sp.push_metadata(
                 filename, metadata, role_hint=role_hint, confirmed_item_id=item_id
             )
             print(f"[SP SYNC] Metadata pushed for {filename}")
 
-            # 2. Rename if eligible
-            if item_id and candidate_db_id is not None and job_code is not None:
-                fields = sp.get_item_fields(item_id)
-                source = (fields.get("Source") or "").strip().lower()
+            # 3. Rename only when:
+            #    a) the score was blank before screening, AND
+            #    b) source is an explicit non-Website value
+            if (
+                item_id
+                and candidate_db_id is not None
+                and job_code is not None
+                and is_blank_score
+                and source
+                and source != "website"
+            ):
+                raw_name = (metadata.get("CandidateName") or "").strip()
+                if raw_name and raw_name.lower() != "unknown":
+                    ext = os.path.splitext(filename)[1]  # .pdf / .docx / etc.
+                    clean = _clean_candidate_name(raw_name)
+                    new_name = f"{clean}_{job_code}{ext}"
 
-                # Only rename files with an explicit non-Website source
-                if source and source != "website":
-                    raw_name = (metadata.get("CandidateName") or "").strip()
-                    if raw_name and raw_name.lower() != "unknown":
-                        ext = os.path.splitext(filename)[1]  # .pdf / .docx / etc.
-                        clean = _clean_candidate_name(raw_name)
-                        new_name = f"{clean}_{job_code}{ext}"
+                    # Skip if the file is already correctly named
+                    if new_name.lower() == filename.lower():
+                        print(f"[SP RENAME] Already named correctly: {filename}")
+                    else:
+                        # 3a. Rename the primary file (PDF / DOCX)
+                        final_name, status = sp.rename_item(item_id, new_name)
+                        if status == "OK" and final_name:
+                            update_candidate_resume_filename(
+                                candidate_db_id, final_name
+                            )
+                            print(f"[SP RENAME] {filename} → {final_name}")
 
-                        # Skip if the file is already correctly named
-                        if new_name.lower() == filename.lower():
-                            print(f"[SP RENAME] Already named correctly: {filename}")
-                        else:
-                            final_name, status = sp.rename_item(item_id, new_name)
-                            if status == "OK" and final_name:
-                                update_candidate_resume_filename(
-                                    candidate_db_id, final_name
+                            # 3b. Rename the paired .txt file (same stem)
+                            txt_version = sp.find_txt_version(role_hint, filename)
+                            if txt_version:
+                                txt_new_name = f"{clean}_{job_code}.txt"
+                                txt_final, txt_status = sp.rename_item(
+                                    txt_version["id"], txt_new_name
                                 )
-                                print(f"[SP RENAME] {filename} → {final_name}")
+                                if txt_status == "OK":
+                                    print(
+                                        f"[SP RENAME] {txt_version['name']} → {txt_final}"
+                                    )
+                                else:
+                                    print(
+                                        f"[SP RENAME ERROR] TXT rename failed for "
+                                        f"{txt_version['name']}: {txt_status}"
+                                    )
                             else:
-                                print(f"[SP RENAME ERROR] {filename}: {status}")
-                else:
-                    reason = (
-                        "Source='Website'"
-                        if source == "website"
-                        else "Source unknown/empty"
-                    )
-                    print(f"[SP RENAME] Skipped ({reason}) for {filename}")
+                                print(
+                                    f"[SP RENAME] No paired .txt found for {filename}"
+                                )
+                        else:
+                            print(f"[SP RENAME ERROR] {filename}: {status}")
+            else:
+                reasons = []
+                if not is_blank_score:
+                    reasons.append(f"score already set ({existing_score})")
+                if source == "website":
+                    reasons.append("Source='Website'")
+                elif not source:
+                    reasons.append("Source unknown/empty")
+                if reasons:
+                    print(f"[SP RENAME] Skipped ({', '.join(reasons)}) for {filename}")
 
         except Exception as e:
             print(f"[SP ERROR] Background sync failed for {filename}: {e}")

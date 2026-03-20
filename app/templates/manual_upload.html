@@ -28,7 +28,9 @@
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
         <h3 style="margin: 0; font-size: 1.25rem;">Selected Files</h3>
         <div style="display: flex; align-items: center; gap: 1rem; background: var(--bg-main); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border-light);">
-            <label for="globalSource" style="font-weight: 600; font-size: 0.9rem; margin: 0;">Global Source:</label>
+            <label for="globalSource" style="font-weight: 600; font-size: 0.9rem; margin: 0;">
+                Global Source <span style="color: var(--accent-rose); font-size: 1.1rem;">*</span>:
+            </label>
             <select id="globalSource" class="form-control" style="padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-light);">
                  <option value="">-- Select --</option>
                  <option value="LinkedIn">LinkedIn</option>
@@ -36,7 +38,7 @@
                  <option value="Referral">Referral</option>
                  <option value="Other">Other</option>
             </select>
-            <button id="applyGlobalBtn" class="btn" style="background: var(--accent-indigo); color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 500; border: none; cursor: pointer;">Apply</button>
+            <button id="applyGlobalBtn" class="btn" style="background: var(--accent-indigo); color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: 500; border: none; cursor: pointer;">Apply to All</button>
         </div>
     </div>
     
@@ -45,7 +47,9 @@
             <thead>
                 <tr style="border-bottom: 2px solid var(--border-light); text-align: left;">
                     <th style="padding: 1rem; color: var(--text-muted);">File Name</th>
-                    <th style="padding: 1rem; color: var(--text-muted); width: 200px;">Source</th>
+                    <th style="padding: 1rem; color: var(--text-muted); width: 200px;">
+                        Source <span style="color: var(--accent-rose); font-size: 1.1rem;">*</span>
+                    </th>
                     <th style="padding: 1rem; color: var(--text-muted); width: 100px; text-align: center;">Action</th>
                 </tr>
             </thead>
@@ -76,7 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const uploadBtn = document.getElementById("uploadBtn");
 
     const sourceOptions = `
-        <option value="">-- Select --</option>
+        <option value="">-- Select Required --</option>
         <option value="LinkedIn">LinkedIn</option>
         <option value="Naukri">Naukri</option>
         <option value="Referral">Referral</option>
@@ -152,7 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     ${file.name}
                 </td>
                 <td style="padding: 1rem;">
-                    <select class="form-control source-select" data-index="${index}" style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-light);">
+                    <select class="form-control source-select" data-index="${index}" style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-light);" onchange="clearSourceError(this)">
                         ${sourceOptions}
                     </select>
                 </td>
@@ -177,16 +181,29 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // Clear error styling when user selects a source
+    window.clearSourceError = function(selectElement) {
+        selectElement.style.borderColor = "";
+        selectElement.style.background = "";
+    };
+
     // Global Source Apply
     applyGlobalBtn.addEventListener("click", () => {
         const globalVal = globalSource.value;
-        if (!globalVal) return;
+        if (!globalVal) {
+            alert("Please select a source first before applying to all.");
+            globalSource.focus();
+            return;
+        }
         document.querySelectorAll(".source-select").forEach(select => {
             select.value = globalVal;
+            // Clear any error styling
+            select.style.borderColor = "";
+            select.style.background = "";
         });
     });
 
-    // Upload logic
+    // Upload logic with enhanced validation
     uploadBtn.addEventListener("click", async () => {
         if (selectedFiles.length === 0) {
             alert("Please select at least one resume.");
@@ -195,19 +212,37 @@ document.addEventListener("DOMContentLoaded", () => {
         const targetFolder = subfolderSelect.value;
         if (!targetFolder) {
             alert("Please select a target subfolder.");
+            subfolderSelect.focus();
             return;
         }
 
-        // Collect sources
+        // Collect sources and validate - REQUIRED CHECK
         const sources = [];
         let missingSource = false;
-        document.querySelectorAll(".source-select").forEach((select, i) => {
-            if (!select.value) missingSource = true;
+        const sourceSelects = document.querySelectorAll(".source-select");
+        
+        sourceSelects.forEach((select, i) => {
+            if (!select.value || select.value === "") {
+                missingSource = true;
+                // Highlight the missing field
+                select.style.borderColor = "var(--accent-rose)";
+                select.style.background = "rgba(239, 68, 68, 0.1)";
+            } else {
+                // Reset styling if previously highlighted
+                select.style.borderColor = "";
+                select.style.background = "";
+            }
             sources.push(select.value);
         });
 
         if (missingSource) {
-            alert("Please select a source for all candidates.");
+            alert("⚠️ Source is REQUIRED for all resumes.\n\nPlease select a source (LinkedIn, Naukri, Referral, or Other) for each file before uploading.");
+            // Scroll to first missing source
+            const firstMissing = document.querySelector(".source-select[style*='border-color']");
+            if (firstMissing) {
+                firstMissing.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                firstMissing.focus();
+            }
             return;
         }
 
@@ -231,7 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const data = await res.json();
             
             if (res.ok && data.success) {
-                alert(`Upload Successful! \\nPassed: ${data.success_count} \\nCorrupted: ${data.corrupted_count}`);
+                alert(`Upload Successful! \nPassed: ${data.success_count} \nCorrupted: ${data.corrupted_count}`);
                 // Clear UI
                 selectedFiles = [];
                 resumeFilesInput.value = "";

@@ -26,15 +26,19 @@
             </div>
             <div class="form-group">
                 <label class="form-label">Select Candidate</label>
-                <select id="candidate_id" class="form-control" onchange="fetchHistory()">
+                <select id="candidate_id" class="form-control" onchange="onCandidateSelected()">
                     <option value="">-- Choose Candidate --</option>
                     {% for c in candidates %}
-                    <option value="{{ c.candidate_id }}" data-role="{{ c.role_name }}">
+                    <option value="{{ c.candidate_id }}" data-role="{{ c.role_name }}" data-job-id="{{ c.job_id }}">
                         [{{ c.candidate_id }}] {{ c.full_name }}
                     </option>
                     {% endfor %}
                 </select>
             </div>
+        </div>
+
+        <!-- QA File Status Banner -->
+        <div id="qa_file_banner" style="display: none; margin-bottom: 1.5rem; padding: 1rem 1.25rem; border-radius: 10px; font-size: 0.85rem;">
         </div>
 
         <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 2rem 0;">
@@ -61,18 +65,50 @@
             </div>
         </div>
 
-        <!-- Step 2: Review & Score -->
+        <!-- Step 2: Review Transcript -->
         <div id="step_2_section" style="display: none; margin-top: 3rem;">
             <h3 style="font-size: 1rem; margin-bottom: 1rem;">
-                <span class="badge" style="background: var(--accent-indigo);">Step 2</span> Review Transcript &amp; Evaluate
+                <span class="badge" style="background: var(--accent-indigo);">Step 2</span> Review Transcript
             </h3>
             <div class="form-group">
                 <label class="form-label">Diarized Transcript (Edit if needed)</label>
                 <textarea id="transcript_text" class="form-control"
-                    style="height: 250px; font-family: 'Courier New', monospace; font-size: 0.9rem; line-height: 1.5;"
+                    style="height: 220px; font-family: 'Courier New', monospace; font-size: 0.9rem; line-height: 1.5;"
                     placeholder="Transcript will appear here..."></textarea>
             </div>
-            <div style="text-align: right; margin-top: 1rem;">
+            <div style="text-align: right; margin-top: 0.75rem;">
+                <button class="btn btn-primary" onclick="detectAskedQuestions()" id="detect_btn"
+                    style="background: var(--accent-indigo);">
+                    <i class="fa-solid fa-magnifying-glass"></i> Auto-Detect Asked Questions
+                </button>
+            </div>
+        </div>
+
+        <!-- Step 3: Question Bank Confirmation -->
+        <div id="step_3_section" style="display: none; margin-top: 3rem;">
+            <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">
+                <span class="badge" style="background: var(--accent-indigo);">Step 3</span> Confirm Questions Asked
+            </h3>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1.25rem;">
+                <i class="fa-solid fa-circle-info" style="color: var(--accent-indigo);"></i>
+                Questions auto-detected from the transcript are pre-checked. Adjust as needed — only checked questions will be scored.
+            </p>
+
+            <div id="question_bank_list" style="display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1.5rem;">
+                <!-- Question cards injected by JS -->
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: rgba(99,102,241,0.05); border: 1px solid rgba(99,102,241,0.2); border-radius: 8px; margin-bottom: 1rem; font-size: 0.85rem;">
+                <span style="color: var(--text-secondary);">
+                    <span id="checked_count" style="font-weight: 700; color: var(--accent-indigo);">0</span>
+                    questions selected for scoring
+                </span>
+                <span style="color: var(--text-secondary);">
+                    Max score: <span id="max_score_display" style="font-weight: 700; color: var(--accent-indigo);">0</span> pts
+                </span>
+            </div>
+
+            <div style="text-align: right;">
                 <button id="evaluate_btn" class="btn btn-primary" style="background: #10b981;" onclick="evaluateTranscript()">
                     <i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Score
                 </button>
@@ -88,7 +124,7 @@
                 </div>
                 <div class="score-display">
                     <div id="numeric_score" class="score-number" style="color: #10b981;">--</div>
-                    <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">QA Score (Out of 50)</div>
+                    <div id="score_denominator" style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; text-align: center; color: var(--text-secondary);">QA Score</div>
                 </div>
             </div>
 
@@ -125,13 +161,19 @@
     </div>
 </div>
 
-<!-- Safely pass Jinja variables to JavaScript using a data script tag -->
+<!-- Safely pass Jinja variables to JavaScript -->
 <script id="candidates-data" type="application/json">
     {{ candidates | tojson }}
 </script>
+
 <script>
     const candidatesData = JSON.parse(document.getElementById('candidates-data').textContent);
     let currentHistory = [];
+
+    // State
+    let loadedQaText = '';          // raw QA text from SharePoint
+    let loadedQuestions = [];        // parsed question objects [{number, text, expected_answer, red_flags}]
+    let detectedQuestionNumbers = []; // auto-detected from transcript
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -140,10 +182,280 @@
         return m ? m[1] : null;
     }
 
-    /**
-     * Parse the markdown evaluation text into structured question cards.
-     */
-    function renderEvaluation(rawText) {
+    function extractMaxScore(text) {
+        // Try "Total Score: 38/50" or "Total Score: 38" patterns
+        const m = text.match(/Total\s+Score[\s\*:\-–—]+(\d+)\s*\/\s*(\d+)/i);
+        return m ? parseInt(m[2]) : null;
+    }
+
+    function showBanner(type, html) {
+        const banner = document.getElementById('qa_file_banner');
+        const styles = {
+            success: 'background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.3); color: #059669;',
+            error:   'background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.3); color: #dc2626;',
+            warning: 'background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.3); color: #d97706;',
+            info:    'background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.3); color: #4f46e5;',
+        };
+        banner.style.cssText = (styles[type] || styles.info) + ' display: block; padding: 1rem 1.25rem; border-radius: 10px; font-size: 0.85rem;';
+        banner.innerHTML = html;
+    }
+
+    function hideBanner() {
+        document.getElementById('qa_file_banner').style.display = 'none';
+    }
+
+    // ── Candidate selection ────────────────────────────────────────────────────
+
+    function filterCandidates() {
+        const role = document.getElementById('role_filter').value;
+        const select = document.getElementById('candidate_id');
+        select.querySelectorAll('option').forEach(opt => {
+            if (!opt.value) return;
+            opt.style.display = (!role || opt.getAttribute('data-role') === role) ? '' : 'none';
+        });
+        select.value = '';
+        resetAll();
+    }
+
+    async function onCandidateSelected() {
+        const cid = document.getElementById('candidate_id').value;
+        resetAll();
+
+        if (!cid) {
+            hideBanner();
+            updateHistoryPanel('');
+            return;
+        }
+
+        fetchHistory(cid);
+        await loadQaFile(cid);
+    }
+
+    function resetAll() {
+        loadedQaText = '';
+        loadedQuestions = [];
+        detectedQuestionNumbers = [];
+
+        document.getElementById('step_2_section').style.display = 'none';
+        document.getElementById('step_3_section').style.display = 'none';
+        document.getElementById('result_section').style.display = 'none';
+        document.getElementById('transcript_text').value = '';
+        document.getElementById('question_bank_list').innerHTML = '';
+        document.getElementById('transcribe_status').style.display = 'none';
+        document.getElementById('transcribe_progress').style.width = '0%';
+    }
+
+    // ── QA File Loader ─────────────────────────────────────────────────────────
+
+    async function loadQaFile(candidateId) {
+        showBanner('info', '<i class="fa-solid fa-spinner fa-spin"></i> Loading QA file from SharePoint…');
+
+        try {
+            const resp = await fetch('/api/qa/load-qa-file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ candidate_id: candidateId })
+            });
+            const data = await resp.json();
+
+            if (!resp.ok) {
+                showBanner('error',
+                    `<i class="fa-solid fa-circle-exclamation"></i> <strong>QA file required but not found.</strong><br>
+                    ${data.error || 'Unknown error'}<br>
+                    ${data.required_filename ? `<span style="opacity:0.8;">Expected file: <code>${data.required_filename}</code> in <code>${data.sharepoint_folder}</code></span>` : ''}`
+                );
+                // Block scoring — disable transcribe button
+                document.getElementById('transcribe_btn').disabled = true;
+                document.getElementById('transcribe_btn').title = 'QA file must be present in SharePoint before scoring';
+                return;
+            }
+
+            loadedQaText = data.qa_text;
+            loadedQuestions = data.questions;
+
+            document.getElementById('transcribe_btn').disabled = false;
+            document.getElementById('transcribe_btn').title = '';
+
+            showBanner('success',
+                `<i class="fa-solid fa-circle-check"></i> 
+                <strong>QA file loaded:</strong> ${data.qa_filename} 
+                &nbsp;·&nbsp; <span style="opacity:0.8;">${data.questions.length} questions in bank</span>
+                &nbsp;·&nbsp; <span style="opacity:0.8;">Role: ${data.role_name}</span>`
+            );
+
+        } catch (err) {
+            showBanner('error', `<i class="fa-solid fa-circle-exclamation"></i> Network error loading QA file: ${err.message}`);
+            document.getElementById('transcribe_btn').disabled = true;
+        }
+    }
+
+    // ── Auto-Detect Asked Questions ────────────────────────────────────────────
+
+    async function detectAskedQuestions() {
+        const transcript = document.getElementById('transcript_text').value.trim();
+        if (!transcript) {
+            alert('Transcript is empty. Please transcribe the audio first.');
+            return;
+        }
+        if (!loadedQuestions.length) {
+            alert('No QA file loaded. Please select a valid candidate first.');
+            return;
+        }
+
+        const btn = document.getElementById('detect_btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Detecting…';
+
+        try {
+            const resp = await fetch('/api/qa/detect-questions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    transcript,
+                    questions: loadedQuestions.map(q => ({ number: q.number, text: q.text }))
+                })
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                detectedQuestionNumbers = data.detected_question_numbers;
+            } else {
+                console.warn('[QA DETECT] Failed:', data.error);
+                detectedQuestionNumbers = [];
+            }
+        } catch (err) {
+            console.warn('[QA DETECT] Network error:', err.message);
+            detectedQuestionNumbers = [];
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Auto-Detect Asked Questions';
+        }
+
+        renderQuestionBank();
+        document.getElementById('step_3_section').style.display = 'block';
+        document.getElementById('step_3_section').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ── Question Bank Renderer ─────────────────────────────────────────────────
+
+    function renderQuestionBank() {
+        const container = document.getElementById('question_bank_list');
+        container.innerHTML = '';
+
+        loadedQuestions.forEach(q => {
+            const isDetected = detectedQuestionNumbers.includes(q.number);
+
+            const card = document.createElement('div');
+            card.className = 'qb-card' + (isDetected ? ' qb-detected' : '');
+            card.innerHTML = `
+                <label style="display: flex; gap: 1rem; align-items: flex-start; cursor: pointer; width: 100%;">
+                    <input type="checkbox" class="qb-checkbox" value="${q.number}"
+                        ${isDetected ? 'checked' : ''}
+                        onchange="updateCheckedCount()"
+                        style="margin-top: 3px; width: 16px; height: 16px; accent-color: var(--accent-indigo); flex-shrink: 0;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;">
+                            <span class="qb-num">Q${q.number}</span>
+                            ${isDetected ? '<span class="qb-auto-badge"><i class="fa-solid fa-wand-magic-sparkles"></i> Auto-detected</span>' : ''}
+                        </div>
+                        <div class="qb-question-text">${escapeHtml(q.text)}</div>
+                        ${q.expected_answer ? `
+                        <div class="qb-detail" style="margin-top: 0.5rem;">
+                            <span class="qb-detail-label">Expected:</span>
+                            <span class="qb-detail-value">${escapeHtml(q.expected_answer)}</span>
+                        </div>` : ''}
+                        ${q.red_flags ? `
+                        <div class="qb-detail" style="margin-top: 0.3rem;">
+                            <span class="qb-detail-label" style="color: #ef4444;">Red Flags:</span>
+                            <span class="qb-detail-value" style="color: #ef4444;">${escapeHtml(q.red_flags)}</span>
+                        </div>` : ''}
+                    </div>
+                </label>
+            `;
+            container.appendChild(card);
+        });
+
+        updateCheckedCount();
+    }
+
+    function updateCheckedCount() {
+        const checked = document.querySelectorAll('.qb-checkbox:checked');
+        const count = checked.length;
+        document.getElementById('checked_count').innerText = count;
+        document.getElementById('max_score_display').innerText = count * 10;
+
+        const evalBtn = document.getElementById('evaluate_btn');
+        evalBtn.disabled = count === 0;
+        if (count === 0) {
+            evalBtn.title = 'Select at least one question to score';
+        } else {
+            evalBtn.title = '';
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // ── Evaluate ───────────────────────────────────────────────────────────────
+
+    async function evaluateTranscript() {
+        const cid = document.getElementById('candidate_id').value;
+        const transcript = document.getElementById('transcript_text').value.trim();
+        const btn = document.getElementById('evaluate_btn');
+
+        if (!transcript) { alert('Transcript is empty.'); return; }
+        if (!loadedQaText) { alert('QA file not loaded. Please select a valid candidate.'); return; }
+
+        const confirmedNumbers = Array.from(
+            document.querySelectorAll('.qb-checkbox:checked')
+        ).map(cb => parseInt(cb.value));
+
+        if (confirmedNumbers.length === 0) {
+            alert('Please select at least one question that was asked during the call.');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing with Gemini…';
+
+        try {
+            const resp = await fetch('/api/qa/evaluate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    candidate_id: cid,
+                    transcript,
+                    qa_text: loadedQaText,
+                    confirmed_questions: confirmedNumbers,
+                    all_questions: loadedQuestions,
+                })
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                const maxScore = data.max_score || confirmedNumbers.length * 10;
+                document.getElementById('result_section').style.display = 'block';
+                document.getElementById('numeric_score').innerText = data.numeric_score;
+                document.getElementById('score_denominator').innerText = `QA Score (out of ${maxScore})`;
+                renderEvaluation(data.score_text, maxScore);
+                document.getElementById('result_section').scrollIntoView({ behavior: 'smooth' });
+                fetchHistory(cid);
+            } else {
+                alert('Evaluation failed: ' + (data.error || 'Unknown error'));
+            }
+        } catch (err) {
+            alert('Error: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Score';
+        }
+    }
+
+    // ── Evaluation Renderer ────────────────────────────────────────────────────
+
+    function renderEvaluation(rawText, maxScoreOverride) {
         const container = document.getElementById('eval_questions');
         const overallDiv = document.getElementById('eval_overall');
         const summaryBar = document.getElementById('score_summary_bar');
@@ -156,25 +468,24 @@
             return;
         }
 
-        // Split by question markers
         const questionBlocks = rawText.split(/(?=\*?\*?Question\s+\d+)/i).filter(b => b.trim());
         let totalScore = 0;
         let questionCount = 0;
         const cards = [];
 
         for (const block of questionBlocks) {
-            // Try to extract question number and text
             const qMatch = block.match(/\*?\*?Question\s+(\d+):\s*(.*?)(\*\*)?$/m);
             if (!qMatch) {
-                // This might be the overall evaluation section
                 if (/overall\s+evaluation/i.test(block) || /total\s+score/i.test(block)) {
-                    const totalMatch = block.match(/Total\s+Score[\s\*:\-–—]+(\d+)/i);
+                    const totalMatch = block.match(/Total\s+Score[\s\*:\-–—]+(\d+)\s*(?:\/\s*(\d+))?/i);
                     let overallHtml = '<div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem;">';
                     overallHtml += '<i class="fa-solid fa-clipboard-check" style="color: var(--accent-indigo);"></i>';
                     overallHtml += '<span style="font-weight: 800; font-size: 1rem;">Overall Evaluation</span>';
                     overallHtml += '</div>';
                     if (totalMatch) {
-                        overallHtml += `<div style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5;">Total Score: <span style="font-weight: 800; color: var(--accent-indigo); font-size: 1.1rem;">${totalMatch[1]}/50</span></div>`;
+                        const ts = totalMatch[1];
+                        const ms = totalMatch[2] || maxScoreOverride || '?';
+                        overallHtml += `<div style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5;">Total Score: <span style="font-weight: 800; color: var(--accent-indigo); font-size: 1.1rem;">${ts}/${ms}</span></div>`;
                     }
                     overallDiv.innerHTML = overallHtml;
                     overallDiv.style.display = 'block';
@@ -184,31 +495,21 @@
 
             const qNum = qMatch[1];
             const qText = qMatch[2].replace(/\*+/g, '').trim();
-
-            // Extract candidate answer
             const ansMatch = block.match(/Candidate'?s?\s+Initial\s+Answer[\s\*:]+\s*(.*?)(?=\n\s*\*?\s*\*?\*?Score|\n\s*$)/si);
             const answer = ansMatch ? ansMatch[1].replace(/\*+/g, '').trim() : '';
-
-            // Extract score
             const scoreMatch = block.match(/Score[\s\*:]+\s*(\d+)\s*\/?\s*(\d+)?/i);
             const qScore = scoreMatch ? parseInt(scoreMatch[1]) : null;
             const qMax = scoreMatch && scoreMatch[2] ? parseInt(scoreMatch[2]) : 10;
 
-            if (qScore !== null) {
-                totalScore += qScore;
-                questionCount++;
-            }
-
+            if (qScore !== null) { totalScore += qScore; questionCount++; }
             cards.push({ qNum, qText, answer, qScore, qMax });
         }
 
-        // Render question cards
         for (const card of cards) {
             const scoreColor = card.qScore === null ? '#6b7280'
                 : card.qScore >= card.qMax * 0.8 ? '#10b981'
                 : card.qScore >= card.qMax * 0.5 ? '#f59e0b'
                 : '#ef4444';
-
             const scorePercent = card.qScore !== null ? Math.round((card.qScore / card.qMax) * 100) : 0;
 
             const cardEl = document.createElement('div');
@@ -233,13 +534,10 @@
             container.appendChild(cardEl);
         }
 
-        // Render summary bar
         if (questionCount > 0) {
-            const maxPossible = questionCount * 10; // assuming 10 per question
-            const totalMax = 50; // or use maxPossible for dynamic
+            const totalMax = maxScoreOverride || (questionCount * 10);
             const percent = Math.round((totalScore / totalMax) * 100);
             const barColor = percent >= 80 ? '#10b981' : percent >= 50 ? '#f59e0b' : '#ef4444';
-
             document.getElementById('score_bar_fill').style.width = percent + '%';
             document.getElementById('score_bar_fill').style.background = barColor;
             document.getElementById('score_bar_label').innerText = totalScore + ' / ' + totalMax;
@@ -248,36 +546,18 @@
         }
     }
 
-    // ── Candidate filter ───────────────────────────────────────────────────────
+    // ── History Panel ──────────────────────────────────────────────────────────
 
-    function filterCandidates() {
-        const role = document.getElementById('role_filter').value;
-        const select = document.getElementById('candidate_id');
-
-        select.querySelectorAll('option').forEach(opt => {
-            if (!opt.value) return;
-            opt.style.display = (!role || opt.getAttribute('data-role') === role) ? '' : 'none';
-        });
-
-        select.value = '';
-        fetchHistory();
+    function updateHistoryPanel(message) {
+        document.getElementById('history_list').innerHTML =
+            `<p style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 3rem 0;">${message || 'Select a candidate to see their past scores.'}</p>`;
     }
 
-    // ── History panel ──────────────────────────────────────────────────────────
-
-    async function fetchHistory() {
-        const cid = document.getElementById('candidate_id').value;
+    async function fetchHistory(cid) {
         const list = document.getElementById('history_list');
+        if (!cid) { updateHistoryPanel(''); return; }
 
-        document.getElementById('step_2_section').style.display = 'none';
-        document.getElementById('result_section').style.display = 'none';
-
-        if (!cid) {
-            list.innerHTML = '<p style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 3rem 0;">Select a candidate to see their past scores.</p>';
-            return;
-        }
-
-        list.innerHTML = '<div style="text-align:center; padding: 2rem;"><i class="fa-solid fa-spinner fa-spin text-indigo"></i></div>';
+        list.innerHTML = '<div style="text-align:center; padding: 2rem;"><i class="fa-solid fa-spinner fa-spin" style="color:var(--accent-indigo);"></i></div>';
 
         try {
             const resp = await fetch(`/api/qa/results/${cid}`);
@@ -287,15 +567,20 @@
                 currentHistory = data.results;
                 list.innerHTML = data.results.map((r, idx) => {
                     const score = extractScore(r.score_text);
+                    const maxSc = (r.token_meta && r.token_meta.max_score) || extractMaxScore(r.score_text) || 50;
                     return `
                     <div class="card" style="padding: 1rem; font-size: 0.85rem; cursor: pointer; border-left: 4px solid #10b981;" onclick="showPastResultByIdx(${idx})">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span style="font-weight: 700;">${new Date(r.created_at).toLocaleDateString()}</span>
-                            <span style="color: #10b981; font-weight: 800;">${score ? score + '/50' : 'View'}</span>
+                            <span style="color: #10b981; font-weight: 800;">${score ? score + '/' + maxSc : 'View'}</span>
                         </div>
                         <div style="color: var(--text-secondary); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                             ${r.audio_filename || 'Direct Transcript'}
                         </div>
+                        ${r.token_meta && r.token_meta.confirmed_questions ? `
+                        <div style="color: var(--text-secondary); font-size: 0.72rem; margin-top: 0.3rem;">
+                            <i class="fa-solid fa-list-check"></i> ${r.token_meta.confirmed_questions.length} questions scored
+                        </div>` : ''}
                     </div>`;
                 }).join('');
             } else {
@@ -309,11 +594,12 @@
     function showPastResultByIdx(idx) {
         const r = currentHistory[idx];
         if (!r) return;
-
         const score = extractScore(r.score_text);
+        const maxSc = (r.token_meta && r.token_meta.max_score) || extractMaxScore(r.score_text) || 50;
         document.getElementById('result_section').style.display = 'block';
-        document.getElementById('numeric_score').innerText = score ? score + ' / 50' : '??';
-        renderEvaluation(r.score_text);
+        document.getElementById('numeric_score').innerText = score || '??';
+        document.getElementById('score_denominator').innerText = `QA Score (out of ${maxSc})`;
+        renderEvaluation(r.score_text, maxSc);
         document.getElementById('result_section').scrollIntoView({ behavior: 'smooth' });
     }
 
@@ -329,6 +615,10 @@
 
         if (!cid || !audio) {
             alert('Please select a candidate and an audio file.');
+            return;
+        }
+        if (!loadedQaText) {
+            alert('QA file not loaded for this candidate. Cannot proceed.');
             return;
         }
 
@@ -358,7 +648,6 @@
 
             for (let i = 0; i < MAX_POLLS; i++) {
                 await new Promise(r => setTimeout(r, POLL_INTERVAL));
-
                 const elapsed = Math.round((i + 1) * POLL_INTERVAL / 1000);
                 const dots = '.'.repeat((i % 3) + 1);
                 msg.innerText = `Sarvam is transcribing${dots} (${elapsed}s elapsed)`;
@@ -367,10 +656,7 @@
                 const pollResp = await fetch(`/api/qa/status/${jobId}`);
                 const pollData = await pollResp.json();
 
-                if (pollData.error) {
-                    throw new Error(pollData.error);
-                }
-
+                if (pollData.error) throw new Error(pollData.error);
                 if (pollData.status === 'completed') {
                     progress.style.width = '100%';
                     msg.innerText = '✓ Transcription complete!';
@@ -380,7 +666,6 @@
                     return;
                 }
             }
-
             throw new Error('Transcription timed out after 6 minutes. Please try again.');
 
         } catch (err) {
@@ -388,46 +673,6 @@
             statusDiv.style.display = 'none';
         } finally {
             btn.disabled = false;
-        }
-    }
-
-    // ── Stage 2: Evaluate ──────────────────────────────────────────────────────
-
-    async function evaluateTranscript() {
-        const cid = document.getElementById('candidate_id').value;
-        const transcript = document.getElementById('transcript_text').value.trim();
-        const btn = document.getElementById('evaluate_btn');
-
-        if (!transcript) {
-            alert('Transcript is empty.');
-            return;
-        }
-
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Analyzing with Gemini…';
-
-        try {
-            const resp = await fetch('/api/qa/evaluate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ candidate_id: cid, transcript })
-            });
-            const data = await resp.json();
-
-            if (data.success) {
-                document.getElementById('result_section').style.display = 'block';
-                document.getElementById('numeric_score').innerText = data.numeric_score + ' / 50';
-                renderEvaluation(data.score_text);
-                document.getElementById('result_section').scrollIntoView({ behavior: 'smooth' });
-                fetchHistory();
-            } else {
-                alert('Evaluation failed: ' + (data.error || 'Unknown error'));
-            }
-        } catch (err) {
-            alert('Error: ' + err.message);
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate AI Score';
         }
     }
 </script>
@@ -443,9 +688,68 @@
         vertical-align: middle;
         margin-right: 0.5rem;
     }
-    .text-indigo { color: var(--accent-indigo); }
 
-    /* Evaluation Question Cards */
+    /* ── Question Bank Cards ── */
+    .qb-card {
+        background: #f8fafc;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        padding: 1rem 1.2rem;
+        transition: border-color 0.2s, background 0.2s;
+    }
+    .qb-card:hover {
+        border-color: rgba(99,102,241,0.3);
+        background: rgba(99,102,241,0.02);
+    }
+    .qb-card.qb-detected {
+        border-color: rgba(16,185,129,0.35);
+        background: rgba(16,185,129,0.03);
+    }
+    .qb-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 6px;
+        background: var(--accent-indigo);
+        color: white;
+        font-size: 0.72rem;
+        font-weight: 800;
+        flex-shrink: 0;
+    }
+    .qb-auto-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 2px 8px;
+        border-radius: 20px;
+        background: rgba(16,185,129,0.12);
+        border: 1px solid rgba(16,185,129,0.3);
+        color: #059669;
+        font-size: 0.68rem;
+        font-weight: 700;
+    }
+    .qb-question-text {
+        font-weight: 600;
+        font-size: 0.88rem;
+        color: var(--text-primary);
+        line-height: 1.4;
+    }
+    .qb-detail {
+        font-size: 0.78rem;
+        line-height: 1.4;
+    }
+    .qb-detail-label {
+        font-weight: 700;
+        color: var(--text-secondary);
+        margin-right: 0.35rem;
+    }
+    .qb-detail-value {
+        color: var(--text-secondary);
+    }
+
+    /* ── Eval Question Cards ── */
     .eval-question-card {
         background: #f8fafc;
         border-radius: 12px;
