@@ -464,6 +464,8 @@ def get_candidate_full_profile(candidate_id: int) -> Optional[dict]:
 
     return {
         "id": data["id"],
+        "job_id": data.get("job_id"),
+        "resume_filename": data.get("resume_filename", ""),
         "candidate_id": data.get("candidate_id", ""),
         "position_applied": _format_role_display(data.get("role_name", "")),
         "full_name": data.get("full_name", ""),
@@ -492,10 +494,94 @@ def get_candidate_full_profile(candidate_id: int) -> Optional[dict]:
     }
 
 
-def update_candidate_hr_fields(candidate_id: int, hr_data: dict) -> bool:
+def update_candidate_full_profile(candidate_id: int, data: dict) -> bool:
     with get_cursor(commit=True) as cur:
+        # First, fetch current raw_json and form_responses
+        cur.execute("SELECT raw_json, form_responses FROM candidates WHERE id = %s", (candidate_id,))
+        row = cur.fetchone()
+        if not row:
+            return False
+            
+        raw_json_str = row.get("raw_json") or "{}"
+        if isinstance(raw_json_str, str):
+            try:
+                raw_json = json.loads(raw_json_str)
+            except (json.JSONDecodeError, TypeError):
+                raw_json = {}
+        else:
+            raw_json = raw_json_str
+            
+        form_responses_str = row.get("form_responses") or "{}"
+        if isinstance(form_responses_str, str):
+            try:
+                form_responses = json.loads(form_responses_str)
+            except (json.JSONDecodeError, TypeError):
+                form_responses = {}
+        else:
+            form_responses = form_responses_str
+
+        # Update raw_json
+        if "function_2_resume_data_extraction" not in raw_json:
+            raw_json["function_2_resume_data_extraction"] = {}
+        extraction = raw_json["function_2_resume_data_extraction"]
+        
+        if "career_metrics" not in extraction:
+            extraction["career_metrics"] = {}
+        career = extraction["career_metrics"]
+
+        # Parse skills and certs strings into lists
+        skills_str = data.get("technical_skills", "")
+        certs_str = data.get("certifications", "")
+        
+        career["technical_skills"] = [s.strip() for s in skills_str.split(",") if s.strip()] if skills_str else []
+        career["certificates_name"] = [c.strip() for c in certs_str.split(",") if c.strip()] if certs_str else []
+        
+        if data.get("relative_experience") is not None and data.get("relative_experience") != "":
+            try:
+                career["relative_years_of_experience"] = float(data.get("relative_experience", 0))
+            except ValueError:
+                pass 
+                
+        # Parse education string and map back to education_history
+        if "education_history" not in extraction:
+            extraction["education_history"] = []
+        edu_history = extraction["education_history"]
+        
+        if "education" in data:
+            edu_str = data.get("education", "")
+            new_degrees = [d.strip() for d in edu_str.split(",") if d.strip()]
+            
+            # Map new degrees back to existing objects, or create new ones
+            for i, degree in enumerate(new_degrees):
+                if i < len(edu_history):
+                    edu_history[i]["degree"] = degree
+                else:
+                    edu_history.append({"degree": degree})
+            
+            # If the user removed degrees, trim the list to match
+            if len(new_degrees) < len(edu_history):
+                extraction["education_history"] = edu_history[:len(new_degrees)]
+            
+        # Update form_responses
+        form_responses["Current Location"] = data.get("current_location", "")
+        form_responses["Willing to Relocate?"] = data.get("relocation", "")
+        form_responses["Notice Period"] = data.get("notice_period", "")
+        
+        # Now update everything
+        try:
+            total_exp = float(data.get("total_experience")) if data.get("total_experience") else None
+        except ValueError:
+            total_exp = None
+            
         cur.execute("""
             UPDATE candidates SET
+                full_name          = %s,
+                phone              = %s,
+                email              = %s,
+                total_experience   = %s,
+                current_company    = %s,
+                current_title      = %s,
+                source             = %s,
                 ta_spoc            = %s,
                 native_location    = %s,
                 offer_in_hand      = %s,
@@ -504,18 +590,29 @@ def update_candidate_hr_fields(candidate_id: int, hr_data: dict) -> bool:
                 ta_hr_comments     = %s,
                 offer_details      = %s,
                 doj                = %s,
-                name_of_source     = %s
+                name_of_source     = %s,
+                raw_json           = %s,
+                form_responses     = %s::jsonb
             WHERE id = %s
         """, (
-            hr_data.get("ta_spoc") or None,
-            hr_data.get("native_location") or None,
-            hr_data.get("offer_in_hand") or None,
-            hr_data.get("shift_flexibility") or None,
-            hr_data.get("reason_for_change") or None,
-            hr_data.get("ta_hr_comments") or None,
-            hr_data.get("offer_details") or None,
-            hr_data.get("doj") or None,
-            hr_data.get("name_of_source") or None,
+            data.get("full_name") or None,
+            data.get("phone") or None,
+            data.get("email") or None,
+            total_exp,
+            data.get("current_company") or None,
+            data.get("current_title") or None,
+            data.get("source") or None,
+            data.get("ta_spoc") or None,
+            data.get("native_location") or None,
+            data.get("offer_in_hand") or None,
+            data.get("shift_flexibility") or None,
+            data.get("reason_for_change") or None,
+            data.get("ta_hr_comments") or None,
+            data.get("offer_details") or None,
+            data.get("doj") or None,
+            data.get("name_of_source") or None,
+            json.dumps(raw_json, ensure_ascii=False),
+            json.dumps(form_responses),
             candidate_id,
         ))
         return cur.rowcount > 0
