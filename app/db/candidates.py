@@ -519,3 +519,25 @@ def update_candidate_hr_fields(candidate_id: int, hr_data: dict) -> bool:
             candidate_id,
         ))
         return cur.rowcount > 0
+
+
+def update_call_selection_status(candidate_db_id: int, status: str | None) -> bool:
+    """
+    Update the call_selection_status for a candidate.
+    status: 'online_test' | 'technical_round' | 'rejected' | None (resets to Pending)
+
+    IMPORTANT: This does NOT touch selection_status — call-round decisions
+    are completely independent from the resume screening status.
+    """
+    with get_cursor(commit=True) as cur:
+        cur.execute(
+            "UPDATE candidates SET call_selection_status = %s WHERE id = %s",
+            (status, candidate_db_id),
+        )
+        return cur.rowcount > 0
+
+
+# Keep old name as alias for any existing call sites during transition
+def update_candidate_next_round(candidate_db_id: int, decision: str) -> bool:
+    """Deprecated: use update_call_selection_status instead."""
+    return update_call_selection_status(candidate_db_id, decision)

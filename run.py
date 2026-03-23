@@ -20,9 +20,6 @@ def setup_initial_state():
 
 
 if __name__ == "__main__":
-    # BUG FIX: Both setup AND app.run() must share the same app context.
-    # The original code called app.run() outside the `with` block, which is fine
-    # for run(), but init_db() needs the context — keeping it explicit and clear.
     with app.app_context():
         setup_initial_state()
 

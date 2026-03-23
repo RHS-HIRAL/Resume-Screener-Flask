@@ -79,3 +79,65 @@ def get_qa_results_by_candidate_fk(candidate_fk: int) -> list[dict]:
             (candidate_fk,),
         )
         return [dict(r) for r in cur.fetchall()]
+
+
+def get_all_evaluated_candidates() -> list[dict]:
+    """
+    Return all candidates who have a qa_score, joined with job info
+    and latest call_qa_results metadata. Ordered by qa_score DESC.
+    """
+    with get_cursor() as cur:
+        cur.execute("""
+            SELECT c.id, c.candidate_id, c.full_name, c.email, c.phone,
+                   c.match_score, c.qa_score, c.call_selection_status, c.selection_status,
+                   c.match_breakdown, c.resume_filename,
+                   j.role_name,
+                   cq.created_at AS eval_date,
+                   cq.token_meta
+            FROM candidates c
+            JOIN jobs j ON c.job_id = j.id
+            LEFT JOIN LATERAL (
+                SELECT created_at, token_meta
+                FROM call_qa_results
+                WHERE candidate_fk = c.id
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) cq ON true
+            WHERE c.qa_score IS NOT NULL
+            ORDER BY c.qa_score DESC, c.full_name ASC
+        """)
+        return [dict(r) for r in cur.fetchall()]
+
+
+def get_latest_evaluation_for_candidate(candidate_fk: int) -> dict | None:
+    """
+    Return the most recent call_qa_results row for a candidate,
+    including full score_text, conversation_text, and token_meta.
+    """
+    with get_cursor() as cur:
+        cur.execute("""
+            SELECT id, candidate_fk, audio_filename, conversation_text,
+                   score_text, token_meta, call_eval_decision, created_at
+            FROM call_qa_results
+            WHERE candidate_fk = %s
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (candidate_fk,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def update_call_eval_decision(candidate_fk: int, decision: str) -> bool:
+    """Update the call_eval_decision on the latest QA result for audit."""
+    with get_cursor(commit=True) as cur:
+        cur.execute("""
+            UPDATE call_qa_results
+            SET call_eval_decision = %s
+            WHERE id = (
+                SELECT id FROM call_qa_results
+                WHERE candidate_fk = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+            )
+        """, (decision, candidate_fk))
+        return cur.rowcount > 0

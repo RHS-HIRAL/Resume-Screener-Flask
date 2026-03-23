@@ -1,0 +1,487 @@
+{% extends "base.html" %}
+{% block title %}Call Evaluation Results{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Call Evaluation Results</h1>
+    <p class="page-subtitle">Review evaluated candidates, view scoring breakdowns, and assign call-round decisions.</p>
+</div>
+
+<!-- Filters -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.5rem;">
+    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <label class="filter-label">Role:</label>
+            <select id="filterRole" class="form-control filter-ctrl">
+                <option value="">All Roles</option>
+            </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <label class="filter-label">Call Status:</label>
+            <select id="filterStatus" class="form-control filter-ctrl">
+                <option value="">All</option>
+                <option value="pending">Pending</option>
+                <option value="online_test">Online Test</option>
+                <option value="technical_round">Technical Round</option>
+                <option value="rejected">Rejected</option>
+            </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <label class="filter-label">Min Call Score:</label>
+            <input type="number" id="filterMinScore" class="form-control filter-ctrl" placeholder="0" min="0" max="100" style="width: 80px;">
+        </div>
+    </div>
+</div>
+
+<!-- Candidates Table -->
+<div class="card" style="padding: 0; overflow: hidden;">
+    <div class="table-scroll-x">
+        <div class="table-scroll-y">
+            <table id="evalTable">
+                <thead>
+                    <tr style="background: rgba(6,182,212,0.04);">
+                        <th class="th-cell">ID</th>
+                        <th class="th-cell">Candidate</th>
+                        <th class="th-cell">Role</th>
+                        <th class="th-cell" style="text-align:center;">Resume Score</th>
+                        <th class="th-cell" style="text-align:center;">Call Score</th>
+                        <th class="th-cell" style="text-align:center;">Call Status</th>
+                    </tr>
+                </thead>
+                <tbody id="evalTableBody">
+                    <tr>
+                        <td colspan="6" style="text-align:center; padding:3rem; color:var(--text-secondary);">
+                            <i class="fa-solid fa-spinner fa-spin" style="font-size:1.5rem;"></i><br>Loading...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Shared Overlay -->
+<div id="panelOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:500; opacity:0; transition:opacity 0.3s;" onclick="closeAllPanels()"></div>
+
+<!-- ═══════════════════════════════════════════════
+     CALL EVAL SIDE PANEL
+     ═══════════════════════════════════════════════ -->
+<div id="evalPanel" class="side-panel">
+    <!-- Sticky header -->
+    <div class="side-panel-header">
+        <button onclick="closeAllPanels()" class="panel-close-btn">&times;</button>
+        <div style="display:flex; align-items:center; gap:1rem;">
+            <div style="flex:1;">
+                <h2 id="panelName" style="font-size:1.2rem; font-weight:700; margin-bottom:0.2rem;"></h2>
+                <p id="panelMeta" style="font-size:0.8rem; color:var(--text-secondary);"></p>
+                <!-- Current call status badge -->
+                <div id="panelStatusBadge" style="margin-top:0.4rem;"></div>
+            </div>
+            <div style="text-align:center; min-width:80px;">
+                <div id="panelScore" class="panel-big-score"></div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.05em;">Call Score</div>
+                <div id="panelRawScore" style="font-size:0.72rem; color:var(--text-secondary);"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Body -->
+    <div style="padding:1.5rem;">
+        <!-- Evaluation Breakdown -->
+        <h3 class="panel-section-title">Evaluation Breakdown</h3>
+        <div id="panelQuestions" style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:1.5rem;"></div>
+
+        <!-- Overall score -->
+        <div class="panel-overall-box" style="margin-bottom:1.5rem;">
+            <div style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-secondary); margin-bottom:0.2rem;">Overall Call Score</div>
+            <div id="panelOverallScore" style="font-size:2rem; font-weight:800; background:linear-gradient(135deg,#22d3ee,#34d399); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; line-height:1.2;"></div>
+            <div id="panelOverallRaw" style="font-size:0.78rem; color:var(--text-secondary); margin-top:0.2rem;"></div>
+        </div>
+
+        <!-- ── Decision Section ── -->
+        <h3 class="panel-section-title">Call Round Decision</h3>
+
+        <!-- Decision dropdown -->
+        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-bottom:0.75rem;">
+            <select id="decisionDropdown" class="form-control" style="flex:1; min-width:180px; padding:0.6rem 0.8rem;">
+                <option value="">-- Select Decision --</option>
+                <option value="online_test">Online Test</option>
+                <option value="technical_round">Technical Round</option>
+                <option value="rejected">Rejected</option>
+            </select>
+            <button id="submitDecisionBtn" class="btn" onclick="submitDecision()"
+                style="background:linear-gradient(135deg,#06b6d4,#22d3ee); color:#fff; padding:0.6rem 1.2rem; min-width:90px;">
+                <i class="fa-solid fa-check"></i> Submit
+            </button>
+            <button class="btn" onclick="undoDecision()"
+                style="background:rgba(100,116,139,0.12); color:var(--text-secondary); padding:0.6rem 1rem; white-space:nowrap; border:1px solid var(--border-color);">
+                <i class="fa-solid fa-rotate-left"></i> Pending
+            </button>
+        </div>
+
+        <div id="decisionFeedback" style="font-size:0.83rem; text-align:center; color:var(--text-secondary); min-height:1.2em;"></div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     RESUME MATCH SIDE PANEL
+     ═══════════════════════════════════════════════ -->
+<div id="resumePanel" class="side-panel">
+    <div class="side-panel-header">
+        <button onclick="closeAllPanels()" class="panel-close-btn">&times;</button>
+        <div style="display:flex; align-items:center; gap:1rem;">
+            <div style="flex:1;">
+                <h2 id="resumePanelName" style="font-size:1.2rem; font-weight:700; margin-bottom:0.2rem;"></h2>
+                <p id="resumePanelMeta" style="font-size:0.8rem; color:var(--text-secondary);"></p>
+            </div>
+            <div style="text-align:center; min-width:70px;">
+                <div id="resumePanelScore" class="panel-big-score"></div>
+                <div style="font-size:0.68rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.05em;">Resume</div>
+            </div>
+        </div>
+    </div>
+    <div style="padding:1.5rem;">
+        <h3 class="panel-section-title">Resume Match Breakdown</h3>
+        <div id="resumePanelCards" style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;"></div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" style="display:none; position:fixed; bottom:2rem; right:2rem; z-index:600; padding:0.8rem 1.4rem; border-radius:10px; font-weight:500; font-size:0.88rem; color:#fff; box-shadow:0 8px 25px rgba(0,0,0,0.2); animation:slideUp 0.3s ease;"></div>
+
+<style>
+@keyframes slideUp { from{transform:translateY(16px);opacity:0} to{transform:translateY(0);opacity:1} }
+
+.filter-label { font-size:0.85rem; color:var(--text-secondary); font-weight:500; white-space:nowrap; }
+.filter-ctrl  { width:auto; padding:0.5rem 0.8rem; }
+.th-cell      { padding:1rem; text-align:left; font-size:0.78rem; text-transform:uppercase; color:var(--text-secondary); letter-spacing:0.05em; }
+
+/* Side panels */
+.side-panel {
+    display:none; position:fixed; right:0; top:0; width:520px; max-width:95vw; height:100vh;
+    background:var(--card-bg); z-index:501; box-shadow:-4px 0 30px rgba(0,0,0,0.12);
+    transform:translateX(100%); transition:transform 0.35s cubic-bezier(0.4,0,0.2,1);
+    overflow-y:auto; border-left:1px solid var(--border-color);
+}
+.side-panel-header {
+    position:sticky; top:0; background:var(--card-bg); z-index:10;
+    padding:1.5rem 1.5rem 1rem; border-bottom:1px solid var(--border-color);
+}
+.panel-close-btn { position:absolute; right:1rem; top:1rem; background:none; border:none; font-size:1.4rem; cursor:pointer; color:var(--text-secondary); line-height:1; }
+.panel-close-btn:hover { color:var(--text-primary); }
+.panel-big-score { font-size:2.4rem; font-weight:800; line-height:1; background:linear-gradient(135deg,#22d3ee,#34d399); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+.panel-section-title { font-size:0.8rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-secondary); margin-bottom:0.75rem; }
+.panel-overall-box { background:linear-gradient(135deg,rgba(6,182,212,0.06),rgba(16,185,129,0.06)); border:1px solid rgba(6,182,212,0.2); border-radius:16px; text-align:center; padding:1.2rem; }
+
+/* Score badges */
+.score-badge { display:inline-flex; align-items:center; justify-content:center; min-width:48px; padding:0.3rem 0.6rem; border-radius:8px; font-weight:700; font-size:0.88rem; cursor:pointer; transition:all 0.2s; }
+.score-badge:hover { transform:scale(1.08); box-shadow:0 4px 12px rgba(6,182,212,0.3); }
+.score-badge.high   { background:rgba(16,185,129,0.12); color:#059669; }
+.score-badge.medium { background:rgba(251,191,36,0.15);  color:#b45309; }
+.score-badge.low    { background:rgba(248,113,113,0.12); color:#dc2626; }
+
+/* Call-status badges */
+.status-badge { display:inline-block; padding:0.25rem 0.65rem; border-radius:6px; font-size:0.74rem; font-weight:600; text-transform:capitalize; }
+.status-badge.online_test     { background:rgba(6,182,212,0.1);   color:#0891b2; }
+.status-badge.technical_round { background:rgba(139,92,246,0.1);  color:#7c3aed; }
+.status-badge.rejected        { background:rgba(239,68,68,0.1);   color:#dc2626; }
+.status-badge.pending         { background:rgba(100,116,139,0.1); color:#64748b; }
+
+/* Q-cards in panel */
+.q-card { background:var(--bg-dark); border:1px solid var(--border-color); border-radius:12px; padding:0.85rem; transition:border-color 0.2s; }
+.q-card:hover { border-color:rgba(6,182,212,0.3); }
+.q-card-title   { font-size:0.74rem; color:var(--text-secondary); margin-bottom:0.4rem; font-weight:500; }
+.q-card-score   { font-size:1.05rem; font-weight:700; }
+.q-card-score.high   { color:#059669; }
+.q-card-score.medium { color:#b45309; }
+.q-card-score.low    { color:#dc2626; }
+.q-card-summary { font-size:0.73rem; color:var(--text-secondary); margin-top:0.3rem; line-height:1.45; }
+
+/* Status chip in q-card */
+.q-status { display:inline-block; padding:0.12rem 0.4rem; border-radius:4px; font-size:0.63rem; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; }
+.q-status.match   { background:rgba(16,185,129,0.15); color:#059669; }
+.q-status.partial { background:rgba(251,191,36,0.15);  color:#b45309; }
+.q-status.nomatch { background:rgba(248,113,113,0.12); color:#dc2626; }
+.q-status.high    { background:rgba(16,185,129,0.15); color:#059669; }
+.q-status.medium  { background:rgba(251,191,36,0.15);  color:#b45309; }
+.q-status.low     { background:rgba(248,113,113,0.12); color:#dc2626; }
+
+#evalTableBody tr { transition:background 0.15s; }
+#evalTableBody tr:hover { background:rgba(6,182,212,0.03); }
+.role-display { font-size:0.8rem; color:var(--text-secondary); max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let ALL_CANDIDATES = [];
+let CURRENT_CANDIDATE_ID = null;
+
+// ── Helpers ──────────────────────────────────────────────
+const BREAKDOWN_ICONS = {
+    experience:      '⏱ Experience',
+    education:       '🎓 Education',
+    location:        '📍 Location',
+    project_history: '📂 Projects',
+    tools_used:      '🔧 Tools',
+    certifications:  '🏆 Certs',
+};
+
+function formatRole(r) { return (r||'').replace(/^\d+_/,'').replace(/_/g,' '); }
+function scoreClass(s) { return s >= 70 ? 'high' : s >= 40 ? 'medium' : 'low'; }
+function statusLabel(s) {
+    if (!s) return 'Pending';
+    return s.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
+}
+function statusClass(s) { return s || 'pending'; }
+function matchStatusClass(s) {
+    const v = (s||'').toLowerCase();
+    return v==='match' ? 'match' : v.includes('partial') ? 'partial' : 'nomatch';
+}
+function matchStatusLabel(s) {
+    const v = (s||'').toLowerCase();
+    return v==='match' ? '✓ MATCH' : v.includes('partial') ? '~ PARTIAL' : '✗ NO MATCH';
+}
+
+// ── Load table ────────────────────────────────────────────
+async function loadCandidates() {
+    try {
+        const res  = await fetch('/api/qa/evaluated-candidates');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        ALL_CANDIDATES = data.candidates;
+        populateRoleFilter();
+        renderTable();
+    } catch (e) {
+        document.getElementById('evalTableBody').innerHTML =
+            `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--accent-rose);">
+             <i class="fa-solid fa-circle-exclamation"></i> ${e.message}</td></tr>`;
+    }
+}
+
+function populateRoleFilter() {
+    const roles = [...new Set(ALL_CANDIDATES.map(c=>c.role_name).filter(Boolean))].sort();
+    const sel = document.getElementById('filterRole');
+    sel.innerHTML = '<option value="">All Roles</option>';
+    roles.forEach(r => { const o=document.createElement('option'); o.value=r; o.textContent=formatRole(r); sel.appendChild(o); });
+}
+
+function renderTable() {
+    const rf = document.getElementById('filterRole').value;
+    const sf = document.getElementById('filterStatus').value;
+    const mf = parseInt(document.getElementById('filterMinScore').value)||0;
+
+    const filtered = ALL_CANDIDATES.filter(c => {
+        if (rf && c.role_name !== rf) return false;
+        if (mf && (c.qa_score||0) < mf) return false;
+        if (sf) {
+            const cs = (c.call_selection_status||'').toLowerCase();
+            if (sf === 'pending' && cs) return false;
+            if (sf !== 'pending' && cs !== sf) return false;
+        }
+        return true;
+    });
+
+    const tbody = document.getElementById('evalTableBody');
+    if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-secondary);">
+            <i class="fa-solid fa-filter-circle-xmark"></i> No candidates match filters.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(c => {
+        const qa  = c.qa_score || 0;
+        const ms  = c.match_score || 0;
+        const css = c.call_selection_status || '';
+        return `<tr>
+            <td style="padding:0.85rem 1rem; font-size:0.83rem; color:var(--text-secondary);">${c.candidate_id||''}</td>
+            <td style="padding:0.85rem 1rem;">
+                <div style="font-weight:600; font-size:0.9rem;">${c.full_name||'N/A'}</div>
+                <div style="font-size:0.74rem; color:var(--text-secondary);">${c.email||''}</div>
+            </td>
+            <td style="padding:0.85rem 1rem;"><span class="role-display">${formatRole(c.role_name)}</span></td>
+            <td style="padding:0.85rem 1rem; text-align:center;">
+                <span class="score-badge ${scoreClass(ms)}" onclick="openResumePanel('${c.candidate_id}')" title="Resume breakdown">${ms}</span>
+            </td>
+            <td style="padding:0.85rem 1rem; text-align:center;">
+                <span class="score-badge ${scoreClass(qa)}" onclick="openCallPanel('${c.candidate_id}')" title="Call evaluation details">${qa}</span>
+            </td>
+            <td style="padding:0.85rem 1rem; text-align:center;">
+                <span class="status-badge ${statusClass(css)}" id="css-${c.candidate_id}">${statusLabel(css)}</span>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+document.getElementById('filterRole').addEventListener('change', renderTable);
+document.getElementById('filterStatus').addEventListener('change', renderTable);
+document.getElementById('filterMinScore').addEventListener('input', renderTable);
+
+// ── Panel helpers ─────────────────────────────────────────
+function showPanel(id) {
+    document.getElementById(id).style.display = 'block';
+    document.getElementById('panelOverlay').style.display = 'block';
+    requestAnimationFrame(() => {
+        document.getElementById(id).style.transform = 'translateX(0)';
+        document.getElementById('panelOverlay').style.opacity = '1';
+    });
+}
+function closeAllPanels() {
+    ['evalPanel','resumePanel'].forEach(id => document.getElementById(id).style.transform = 'translateX(100%)');
+    document.getElementById('panelOverlay').style.opacity = '0';
+    setTimeout(() => {
+        ['evalPanel','resumePanel'].forEach(id => document.getElementById(id).style.display = 'none');
+        document.getElementById('panelOverlay').style.display = 'none';
+    }, 350);
+}
+
+// ── Resume panel ──────────────────────────────────────────
+function openResumePanel(candidateId) {
+    const c = ALL_CANDIDATES.find(x => x.candidate_id === candidateId);
+    if (!c) return showToast('Candidate not found','error');
+    document.getElementById('resumePanelName').textContent = c.full_name||'N/A';
+    document.getElementById('resumePanelMeta').textContent = `${c.candidate_id||''} • ${c.email||''} • ${formatRole(c.role_name)}`;
+    document.getElementById('resumePanelScore').textContent = c.match_score||0;
+    const bd = c.match_breakdown||{};
+    document.getElementById('resumePanelCards').innerHTML = Object.entries(BREAKDOWN_ICONS).map(([k,lbl])=>{
+        const item = bd[k]||{}; const s = item.status||''; const cls = matchStatusClass(s);
+        return `<div class="q-card"><div class="q-card-title">${lbl}</div>
+            <span class="q-status ${cls}">${matchStatusLabel(s)}</span>
+            <div class="q-card-summary">${item.summary||''}</div></div>`;
+    }).join('');
+    showPanel('resumePanel');
+}
+
+// ── Call eval panel ───────────────────────────────────────
+async function openCallPanel(candidateId) {
+    CURRENT_CANDIDATE_ID = candidateId;
+    document.getElementById('decisionFeedback').textContent = '';
+    try {
+        const res  = await fetch(`/api/qa/evaluation-detail/${candidateId}`);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        const c  = data.candidate;
+        const ev = data.evaluation;
+        const meta = ev.token_meta||{};
+
+        // Header
+        document.getElementById('panelName').textContent  = c.full_name||'N/A';
+        document.getElementById('panelMeta').textContent  = `${c.candidate_id||''} • ${c.email||''} • ${formatRole(c.role_name)}`;
+        document.getElementById('panelScore').textContent = c.qa_score||0;
+
+        // Current status badge
+        const css = c.call_selection_status||'';
+        document.getElementById('panelStatusBadge').innerHTML =
+            `<span class="status-badge ${statusClass(css)}" style="font-size:0.75rem;">${statusLabel(css)}</span>`;
+
+        // Sync dropdown to current status
+        document.getElementById('decisionDropdown').value = css||'';
+
+        // Raw score
+        const raw = meta.raw_score||0, maxS = meta.max_score||0;
+        document.getElementById('panelRawScore').textContent = maxS ? `${raw}/${maxS} raw` : '';
+
+        // Question cards
+        const questions = parseScoreText(ev.score_text||'');
+        const qg = document.getElementById('panelQuestions');
+        qg.innerHTML = questions.length ? questions.map(q=>{
+            const cls = q.score>=7?'high': q.score>=4?'medium':'low';
+            return `<div class="q-card">
+                <div class="q-card-title">${q.title}</div>
+                <div style="display:flex;align-items:center;gap:0.4rem;">
+                    <span class="q-card-score ${cls}">${q.score}/10</span>
+                    <span class="q-status ${cls}">${cls==='high'?'✓ GOOD':cls==='medium'?'~ OK':'✗ WEAK'}</span>
+                </div>
+                <div class="q-card-summary">${q.summary}</div>
+            </div>`;
+        }).join('') : `<div style="grid-column:1/-1;color:var(--text-secondary);font-size:0.85rem;">Could not parse breakdown.</div>`;
+
+        // Overall score
+        document.getElementById('panelOverallScore').textContent = `${c.qa_score||0} / 100`;
+        document.getElementById('panelOverallRaw').textContent   = (raw && maxS) ? `Raw: ${raw} / ${maxS}` : '';
+
+        showPanel('evalPanel');
+    } catch(e) {
+        showToast('Failed to load: '+e.message,'error');
+    }
+}
+
+// ── Score text parser ─────────────────────────────────────
+function parseScoreText(text) {
+    const blocks = text.split(/\*\*Question\s+\d+/i).slice(1);
+    return blocks.map(block => ({
+        title:   (block.match(/:\s*(.+?)\*\*/)  || [,'Question'])[1].trim(),
+        score:   parseInt((block.match(/Score[:\s\*]+(\d+)\s*\/\s*10/i)||[,'0'])[1]),
+        summary: ((block.match(/Initial\s+Answer[:\s\*]+(.+?)(?=\n\*|\n---|$)/is)||[,''])[1]).trim().substring(0,150),
+    }));
+}
+
+// ── Decision actions ──────────────────────────────────────
+async function submitDecision() {
+    if (!CURRENT_CANDIDATE_ID) return;
+    const status = document.getElementById('decisionDropdown').value;
+    if (!status) { showToast('Please select a decision first.','error'); return; }
+    await setCallStatus(status);
+}
+
+async function undoDecision() {
+    if (!CURRENT_CANDIDATE_ID) return;
+    await setCallStatus(null);   // null = Pending
+}
+
+async function setCallStatus(status) {
+    const btn  = document.getElementById('submitDecisionBtn');
+    const fb   = document.getElementById('decisionFeedback');
+    btn.disabled = true;
+    fb.textContent = 'Saving…';
+
+    try {
+        const res  = await fetch('/api/qa/set-call-status', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ candidate_id: CURRENT_CANDIDATE_ID, status }),
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        // Update badge in panel header
+        const css = status||'';
+        document.getElementById('panelStatusBadge').innerHTML =
+            `<span class="status-badge ${statusClass(css)}">${statusLabel(css)}</span>`;
+        document.getElementById('decisionDropdown').value = css;
+        fb.textContent = status ? `✓ Set to: ${statusLabel(status)}` : '✓ Reset to Pending';
+        fb.style.color = '#059669';
+
+        // Update table badge
+        const badge = document.getElementById(`css-${CURRENT_CANDIDATE_ID}`);
+        if (badge) { badge.className=`status-badge ${statusClass(css)}`; badge.textContent=statusLabel(css); }
+
+        // Sync local data
+        const cand = ALL_CANDIDATES.find(c=>c.candidate_id===CURRENT_CANDIDATE_ID);
+        if (cand) cand.call_selection_status = status;
+
+        showToast(status ? `${statusLabel(status)} saved!` : 'Reset to Pending', 'success');
+    } catch(e) {
+        fb.textContent = '✗ Error: '+e.message;
+        fb.style.color = '#dc2626';
+        showToast('Error: '+e.message,'error');
+    } finally {
+        btn.disabled = false;
+        setTimeout(()=>{ fb.style.color=''; }, 4000);
+    }
+}
+
+// ── Toast ─────────────────────────────────────────────────
+function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.style.background = type==='error' ? '#dc2626' : '#059669';
+    t.style.display = 'block';
+    setTimeout(()=>{ t.style.display='none'; }, 3000);
+}
+
+document.addEventListener('keydown', e => { if (e.key==='Escape') closeAllPanels(); });
+
+loadCandidates();
+</script>
+{% endblock %}
