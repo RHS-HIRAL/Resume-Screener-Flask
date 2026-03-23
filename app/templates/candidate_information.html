@@ -14,101 +14,191 @@
 .ci-filter-bar .form-group { margin-bottom: 0; }
 .ci-filter-bar select  { min-width: 240px; }
 
-/* ── Two-column layout ───────────────────────────────────────── */
+/* ── Three-part layout (60 left / 40 resume) ─────────────────── */
 .ci-grid {
     display: grid;
-    grid-template-columns: 1fr 360px;
+    grid-template-columns: 60fr 40fr;
     gap: 1.5rem;
     align-items: start;
+    transition: grid-template-columns 0.35s ease;
 }
-@media (max-width: 1024px) { .ci-grid { grid-template-columns: 1fr; } }
+.ci-grid.resume-hidden {
+    grid-template-columns: 1fr 0fr;
+}
+.ci-grid.resume-hidden .ci-resume-col { display: none; }
+.ci-left-col { display: flex; flex-direction: column; gap: 1.5rem; min-width: 0; }
+.ci-resume-col { min-width: 0; }
 
-/* ── Detail table ────────────────────────────────────────────── */
-.ci-table {
+/* ── Sticky Resume Panel ──────────────────────────────────────── */
+.ci-resume-card {
+    position: sticky;
+    top: 1.5rem;
+    height: calc(100vh - 3rem);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+.ci-resume-card .ci-card-head { flex-shrink: 0; }
+.ci-resume-iframe-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.ci-resume-iframe-wrap iframe {
+    flex: 1;
     width: 100%;
-    border-collapse: collapse;
-    font-size: 0.82rem;
+    border: none;
+    background: #f4f4f4;
 }
-.ci-table tr { border-bottom: 1px solid var(--border-color); }
-.ci-table tr:last-child { border-bottom: none; }
-.ci-table td {
-    padding: 0.55rem 0.9rem;
-    vertical-align: middle;
-}
-.ci-table td:first-child {
-    width: 38%;
-    font-weight: 600;
+.ci-resume-placeholder {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     color: var(--text-secondary);
-    white-space: nowrap;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+    padding: 2rem;
+    text-align: center;
+}
+.ci-resume-placeholder i { font-size: 2.5rem; opacity: 0.18; }
+
+/* ── HR Card tint (clearly mine-to-fill) ─────────────────────── */
+#ci-hr-card .ci-card-head {
+    background: rgba(6,182,212,0.06);
+    border-bottom: 1px solid rgba(6,182,212,0.15);
+}
+#ci-hr-card { border-color: rgba(6,182,212,0.2); }
+
+/* ── Toggle button ───────────────────────────────────────────── */
+.btn-toggle-resume {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 6px;
     font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    background: rgba(0,0,0,0.015);
-}
-.ci-table td:last-child {
-    color: var(--text-primary);
-    font-weight: 500;
-}
-.ci-table tr:hover td { background: rgba(6,182,212,0.03); }
-
-/* ── Section divider inside table ───────────────────────────── */
-.ci-section-header td {
-    padding: 0.45rem 0.9rem;
-    background: rgba(6,182,212,0.07) !important;
-    font-size: 0.7rem !important;
-    font-weight: 800 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.08em !important;
-    color: var(--accent-indigo) !important;
-    border-bottom: 1px solid rgba(6,182,212,0.15) !important;
-}
-.ci-section-header td:last-child { background: rgba(6,182,212,0.07) !important; }
-
-/* ── Chips ───────────────────────────────────────────────────── */
-.chip-wrap { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-.chip {
-    display: inline-block;
-    padding: 0.18rem 0.55rem;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    background: rgba(6,182,212,0.1);
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid rgba(6,182,212,0.3);
+    background: rgba(6,182,212,0.06);
     color: var(--accent-indigo);
-    border: 1px solid rgba(6,182,212,0.2);
+    transition: background 0.2s, border-color 0.2s;
     white-space: nowrap;
 }
-.chip.cert {
-    background: rgba(16,185,129,0.08);
-    color: var(--accent-emerald);
-    border-color: rgba(16,185,129,0.2);
-}
-.chip-empty { color: var(--text-secondary); font-style: italic; font-size: 0.78rem; }
+.btn-toggle-resume:hover { background: rgba(6,182,212,0.12); border-color: rgba(6,182,212,0.5); }
 
-/* ── HR form ─────────────────────────────────────────────────── */
-.hr-form-label {
-    font-size: 0.72rem;
+@media (max-width: 1024px) {
+    .ci-grid { grid-template-columns: 1fr; }
+    .ci-grid.resume-hidden { grid-template-columns: 1fr; }
+    .ci-resume-card { position: static; height: 70vh; }
+    .ci-grid.resume-hidden .ci-resume-col { display: none; }
+}
+
+/* ── Detail layout (Accordion & Grid) ────────────────────────── */
+.accordion-section {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 0.8rem;
+    background: var(--card-bg);
+}
+.accordion-header {
+    background: rgba(6,182,212,0.05);
+    padding: 0.75rem 1.2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent-indigo);
+    transition: background 0.2s;
+    user-select: none;
+    border-radius: 8px;
+}
+.accordion-header:hover { background: rgba(6,182,212,0.1); }
+.accordion-header.expanded {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom: 1px solid rgba(6,182,212,0.15);
+}
+.accordion-header i { transition: transform 0.3s ease; }
+.accordion-header.expanded i { transform: rotate(180deg); }
+.accordion-content-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s ease;
+}
+.accordion-content-wrapper.expanded {
+    grid-template-rows: 1fr;
+}
+.accordion-content { overflow: hidden; }
+.accordion-inner { padding: 1.2rem; }
+.field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem 1rem;
+}
+@media (max-width: 600px) { .field-grid { grid-template-columns: 1fr; } }
+
+/* ── Material Outlined Inputs ───────────────────────────────── */
+.md-outlined-input, .md-outlined-static {
+    position: relative;
+    width: 100%;
+}
+.md-outlined-label {
+    position: absolute;
+    top: -0.45rem;
+    left: 0.8rem;
+    background: var(--card-bg);
+    padding: 0 0.3rem;
+    font-size: 0.65rem;
     font-weight: 700;
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    margin-bottom: 0.3rem;
-    display: block;
+    z-index: 10;
+    line-height: 1;
 }
-.hr-form-input {
-    width: 100%;
-    background: #f1f5f9;
+.md-outlined-static {
     border: 1px solid var(--border-color);
-    border-radius: 7px;
-    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    padding: 0.7rem 0.8rem 0.6rem;
+    background: rgba(0,0,0,0.015);
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    min-height: 2.5rem;
+    word-break: break-word;
+}
+.md-outlined-input textarea {
+    width: 100%;
+    box-sizing: border-box;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.7rem 0.8rem 0.6rem;
     color: var(--text-primary);
     font-family: inherit;
-    font-size: 0.83rem;
+    font-size: 0.85rem;
     outline: none;
-    transition: border-color 0.15s;
-    resize: vertical;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    resize: none;
+    overflow: hidden;
+    min-height: 2.5rem;
+    display: block;
+    line-height: 1.4;
 }
-.hr-form-input:focus { border-color: var(--accent-indigo); background: #fff; }
-.hr-form-group { margin-bottom: 0.85rem; }
+.md-outlined-input textarea:hover { border-color: rgba(6,182,212,0.4); }
+.md-outlined-input textarea:focus {
+    border-color: var(--accent-indigo);
+    box-shadow: 0 0 0 2px rgba(6,182,212,0.1);
+}
 
 /* ── Save button states ──────────────────────────────────────── */
 .btn-save-hr {
@@ -220,43 +310,69 @@
             <i class="fa-solid fa-circle-check"></i> Selected
         </span>
     </div>
+    <button class="btn-toggle-resume" id="btn-toggle-resume" onclick="toggleResume()">
+        <i class="fa-solid fa-file-pdf"></i>
+        <span id="toggle-resume-label">Hide Resume</span>
+    </button>
 </div>
 
-<!-- Main grid -->
+<!-- Main grid: 60% left | 40% right sticky resume -->
 <div class="ci-grid" id="ci-main-grid">
-    <!-- Left: Candidate Details -->
-    <div class="card" style="padding: 0; overflow: hidden;" id="ci-details-card">
-        <div class="ci-card-head">
-            <i class="fa-solid fa-id-card" style="color: var(--accent-indigo);"></i>
-            <h3>Candidate Details</h3>
-            <span class="badge-role" id="ci-role-badge" style="display:none;"></span>
+
+    <!-- LEFT COLUMN: Candidate Details + HR Details stacked -->
+    <div class="ci-left-col">
+        <!-- Candidate Details Card -->
+        <div class="card" style="padding: 0; overflow: hidden;" id="ci-details-card">
+            <div class="ci-card-head">
+                <i class="fa-solid fa-id-card" style="color: var(--accent-indigo);"></i>
+                <h3>Candidate Details</h3>
+                <span class="badge-role" id="ci-role-badge" style="display:none;"></span>
+            </div>
+            <div id="ci-details-body">
+                <div class="ci-empty">
+                    <i class="fa-solid fa-user-magnifying-glass"></i>
+                    <p style="font-size:0.88rem;">Select a role and candidate to view details.</p>
+                </div>
+            </div>
         </div>
-        <div id="ci-details-body">
-            <div class="ci-empty">
-                <i class="fa-solid fa-user-magnifying-glass"></i>
-                <p style="font-size:0.88rem;">Select a role and candidate to view details.</p>
+
+        <!-- HR Additional Details Card (tinted) -->
+        <div class="card" style="padding: 0; overflow: hidden;" id="ci-hr-card">
+            <div class="ci-card-head">
+                <i class="fa-solid fa-clipboard-user" style="color: var(--accent-emerald);"></i>
+                <h3>HR Additional Details</h3>
+            </div>
+            <div id="ci-hr-body">
+                <div class="ci-empty" style="padding: 3rem 1rem;">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <p style="font-size:0.85rem;">HR fields will appear after selecting a candidate.</p>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Right: HR Details -->
-    <div class="card" style="padding: 0; overflow: hidden;" id="ci-hr-card">
-        <div class="ci-card-head">
-            <i class="fa-solid fa-clipboard-user" style="color: var(--accent-emerald);"></i>
-            <h3>HR Additional Details</h3>
-        </div>
-        <div style="padding: 1rem 1.2rem;" id="ci-hr-body">
-            <div class="ci-empty" style="padding: 3rem 1rem;">
-                <i class="fa-solid fa-pen-to-square"></i>
-                <p style="font-size:0.85rem;">HR fields will appear after selecting a candidate.</p>
+    <!-- RIGHT COLUMN: Sticky Resume Viewer -->
+    <div class="ci-resume-col">
+        <div class="card ci-resume-card">
+            <div class="ci-card-head">
+                <i class="fa-solid fa-file-pdf" style="color: #e05252;"></i>
+                <h3>Candidate Resume</h3>
+            </div>
+            <div class="ci-resume-iframe-wrap" id="ci-resume-wrap">
+                <div class="ci-resume-placeholder" id="ci-resume-placeholder">
+                    <i class="fa-solid fa-file-magnifying-glass"></i>
+                    <p>Select a candidate to view their resume.</p>
+                </div>
             </div>
         </div>
     </div>
+
 </div>
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
 let currentCandidateId = null;
+let resumeVisible = true;
 const STORAGE_KEY_ROLE = 'ci_last_role';
 const STORAGE_KEY_CANDIDATE = 'ci_last_candidate';
 
@@ -347,6 +463,9 @@ async function onCandidateChange() {
     document.getElementById('ci-hr-body').innerHTML = `
         <div class="ci-empty" style="padding:2rem 1rem;"><i class="fa-solid fa-spinner fa-spin" style="opacity:0.5;"></i></div>`;
 
+    // Kick off resume loading in parallel
+    loadResume(id);
+
     try {
         const res = await fetch(`/api/candidate-info/${id}`);
         const data = await res.json();
@@ -370,6 +489,58 @@ function resetPanels() {
         <p style="font-size:0.85rem;">HR fields will appear after selecting a candidate.</p></div>`;
     document.getElementById('ci-role-badge').style.display = 'none';
     document.getElementById('ci-meta-chip').style.display = 'none';
+    // Reset resume panel
+    const wrap = document.getElementById('ci-resume-wrap');
+    wrap.innerHTML = `<div class="ci-resume-placeholder" id="ci-resume-placeholder">
+        <i class="fa-solid fa-file-magnifying-glass"></i>
+        <p>Select a candidate to view their resume.</p>
+    </div>`;
+}
+
+// ── Toggle Resume Panel ────────────────────────────────────────────────────
+function toggleResume() {
+    resumeVisible = !resumeVisible;
+    const grid = document.getElementById('ci-main-grid');
+    const label = document.getElementById('toggle-resume-label');
+    const icon = document.querySelector('#btn-toggle-resume i');
+    if (resumeVisible) {
+        grid.classList.remove('resume-hidden');
+        label.textContent = 'Hide Resume';
+        icon.className = 'fa-solid fa-file-pdf';
+    } else {
+        grid.classList.add('resume-hidden');
+        label.textContent = 'Show Resume';
+        icon.className = 'fa-solid fa-expand';
+    }
+}
+
+// ── Load Resume ────────────────────────────────────────────────────────────
+function loadResume(candidateId) {
+    const wrap = document.getElementById('ci-resume-wrap');
+    wrap.innerHTML = `<div class="ci-resume-placeholder">
+        <i class="fa-solid fa-spinner fa-spin" style="opacity:0.5;"></i>
+        <p>Loading resume…</p>
+    </div>`;
+
+    const url = `/api/candidate-info/${candidateId}/resume`;
+    // Probe the endpoint first to catch any errors before embedding
+    fetch(url, { method: 'HEAD' })
+        .then(r => {
+            if (r.ok) {
+                wrap.innerHTML = `<iframe src="${url}" title="Candidate Resume"></iframe>`;
+            } else {
+                wrap.innerHTML = `<div class="ci-resume-placeholder">
+                    <i class="fa-solid fa-file-circle-xmark" style="color:var(--accent-rose);opacity:0.6;"></i>
+                    <p style="color:var(--accent-rose);">Resume not found in SharePoint.<br><small style="opacity:0.7;">File may have been moved or renamed.</small></p>
+                </div>`;
+            }
+        })
+        .catch(() => {
+            wrap.innerHTML = `<div class="ci-resume-placeholder">
+                <i class="fa-solid fa-wifi-slash" style="opacity:0.5;"></i>
+                <p>Could not load resume. Check connection.</p>
+            </div>`;
+        });
 }
 
 // ── Render profile ─────────────────────────────────────────────────────────
@@ -382,97 +553,129 @@ function renderProfile(p) {
     // Meta chip in filter bar
     document.getElementById('ci-meta-chip').style.display = 'flex';
 
-    // ── Candidate Details Table ──────────────────────────────────────────
-    const val = v => v !== null && v !== undefined && v !== '' ? v : '<span style="color:var(--text-secondary);font-style:italic;font-size:0.77rem;">—</span>';
+    // ── Candidate Details Accordion ──────────────────────────────────────────
+    const staticVal = v => v !== null && v !== undefined && v !== '' ? escHtml(v) : '<span style="color:var(--text-secondary);font-style:italic;">—</span>';
 
-    const skillChips = chips => {
-        const arr = Array.isArray(chips) ? chips.filter(Boolean) : [];
-        if (!arr.length) return '<span class="chip-empty">—</span>';
-        return `<div class="chip-wrap">${arr.map(s => `<span class="chip">${escHtml(s)}</span>`).join('')}</div>`;
+    const inputVal = (key, v, placeholder="") => {
+        const safeVal = (v !== null && v !== undefined) ? escHtml(v) : '';
+        return `<textarea id="edit_${key}" rows="1" placeholder="${placeholder}" oninput="autoResize(this)" onfocus="autoResize(this)">${safeVal}</textarea>`;
     };
-    const certChips = certs => {
-        const arr = Array.isArray(certs) ? certs.filter(Boolean) : [];
-        if (!arr.length) return '<span class="chip-empty">—</span>';
-        return `<div class="chip-wrap">${arr.map(c => `<span class="chip cert">${escHtml(c)}</span>`).join('')}</div>`;
-    };
-    const eduVal = () => {
-        const arr = Array.isArray(p.education) ? p.education.filter(Boolean) : [];
-        return arr.length ? escHtml(arr.join(' · ')) : '<span style="color:var(--text-secondary);font-style:italic;font-size:0.77rem;">—</span>';
-    };
+
+    const arrayStr = arr => Array.isArray(arr) ? arr.filter(Boolean).join(', ') : '';
 
     const rows = [
         { section: '📋 Position & Identity' },
-        { label: 'Position Applied',   value: val(escHtml(p.position_applied)) },
-        { label: 'Candidate Name',     value: val(escHtml(p.full_name)) },
-        { label: 'Contact No.',        value: val(escHtml(p.phone)) },
-        { label: 'Email ID',           value: val(escHtml(p.email)) },
+        { label: 'Position Applied',   value: staticVal(p.position_applied), isStatic: true },
+        { label: 'Candidate Name',     value: inputVal('full_name', p.full_name) },
+        { label: 'Contact No.',        value: inputVal('phone', p.phone) },
+        { label: 'Email ID',           value: inputVal('email', p.email) },
         { section: '🎓 Background' },
-        { label: 'Education',          value: eduVal() },
-        { label: 'Current Organisation', value: val(escHtml(p.current_company)) },
-        { label: 'Current Designation', value: val(escHtml(p.current_title)) },
+        { label: 'Education (comma separated)', value: inputVal('education', arrayStr(p.education), "e.g. B.Tech, MBA") },
+        { label: 'Current Organisation', value: inputVal('current_company', p.current_company) },
+        { label: 'Current Designation', value: inputVal('current_title', p.current_title) },
         { section: '⏱ Experience' },
-        { label: 'Total Exp (yrs)',    value: val(p.total_experience != null ? p.total_experience + ' yrs' : null) },
-        { label: 'Rel. Exp (yrs)',     value: val(p.relative_experience != null ? p.relative_experience + ' yrs' : null) },
+        { label: 'Total Exp (yrs)',    value: inputVal('total_experience', p.total_experience, "e.g. 5.5") },
+        { label: 'Rel. Exp (yrs)',     value: inputVal('relative_experience', p.relative_experience, "e.g. 3") },
         { section: '🔧 Skills & Certs' },
-        { label: 'Technical Skills',   value: skillChips(p.technical_skills), raw: true },
-        { label: 'Certifications',     value: certChips(p.certifications), raw: true },
+        { label: 'Technical Skills',   value: inputVal('technical_skills', arrayStr(p.technical_skills), "Skill 1, Skill 2...") },
+        { label: 'Certifications',     value: inputVal('certifications', arrayStr(p.certifications), "Cert 1, Cert 2...") },
         { section: '📍 Availability' },
-        { label: 'Current Location',   value: val(escHtml(p.current_location)) },
-        { label: 'Relocation',         value: val(escHtml(p.relocation)) },
-        { label: 'Notice Period',      value: val(escHtml(p.notice_period)) },
-        { label: 'Resume Source',      value: val(escHtml(p.source)) },
+        { label: 'Current Location',   value: inputVal('current_location', p.current_location) },
+        { label: 'Relocation',         value: inputVal('relocation', p.relocation) },
+        { label: 'Notice Period',      value: inputVal('notice_period', p.notice_period) },
+        { label: 'Resume Source',      value: inputVal('source', p.source) },
     ];
 
-    let tableHtml = '<table class="ci-table">';
-    rows.forEach(r => {
-        if (r.section) {
-            tableHtml += `<tr class="ci-section-header"><td colspan="2">${r.section}</td></tr>`;
-        } else {
-            tableHtml += `<tr><td>${r.label}</td><td>${r.value}</td></tr>`;
-        }
-    });
-    tableHtml += '</table>';
-    document.getElementById('ci-details-body').innerHTML = tableHtml;
+    const buildAccordion = (rowData) => {
+        let html = '<div style="padding: 1rem;">';
+        let currentSection = false;
+        rowData.forEach(r => {
+            if (r.section) {
+                if (currentSection) html += `</div></div></div></div></div>`;
+                currentSection = true;
+                html += `
+                <div class="accordion-section">
+                    <div class="accordion-header" onclick="toggleSection(this)">
+                        <span>${r.section}</span>
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </div>
+                    <div class="accordion-content-wrapper">
+                        <div class="accordion-content">
+                            <div class="accordion-inner">
+                                <div class="field-grid">
+                `;
+            } else {
+                const wrapperClass = r.isStatic ? 'md-outlined-static' : 'md-outlined-input';
+                html += `
+                    <div class="${wrapperClass}">
+                        <label class="md-outlined-label">${r.label}</label>
+                        ${r.value}
+                    </div>
+                `;
+            }
+        });
+        if (currentSection) html += `</div></div></div></div></div>`;
+        html += '</div>';
+        return html;
+    };
 
-    // ── HR Form ──────────────────────────────────────────────────────────
-    const hrFields = [
-        { key: 'ta_spoc',          label: 'TA SPOC',            type: 'input',    placeholder: 'Name of TA assigning this candidate' },
-        { key: 'native_location',  label: 'Native Location',    type: 'input',    placeholder: 'Hometown / native city' },
-        { key: 'offer_in_hand',    label: 'Offer in Hand',      type: 'input',    placeholder: 'e.g. Yes – ₹8 LPA from XYZ' },
-        { key: 'shift_flexibility',label: 'Shift Flexibility',  type: 'input',    placeholder: 'e.g. Flexible / Day only / Night ok' },
-        { key: 'reason_for_change',label: 'Reason for Change',  type: 'textarea', placeholder: 'Why is the candidate looking for a change?' },
-        { key: 'ta_hr_comments',   label: 'TA / HR Comments',   type: 'textarea', placeholder: 'Any internal notes or observations…' },
-        { key: 'offer_details',    label: 'Offer Details',      type: 'textarea', placeholder: 'CTC, designation, perks, etc.' },
-        { key: 'doj',              label: 'Date of Joining',    type: 'input',    placeholder: 'e.g. 2025-08-01 or ASAP' },
-        { key: 'name_of_source',   label: 'Name of Source',     type: 'input',    placeholder: 'Referral name / job portal source' },
+    document.getElementById('ci-details-body').innerHTML = buildAccordion(rows);
+
+    // ── HR Accordion ─────────────────────────────────────────────────────────
+    const hrInputVal = (key, v, placeholder="") => {
+        const safeVal = (v !== null && v !== undefined) ? escHtml(v) : '';
+        return `<textarea id="hr_${key}" rows="1" placeholder="${placeholder}" oninput="autoResize(this)" onfocus="autoResize(this)">${safeVal}</textarea>`;
+    };
+    const hrTextareaVal = (key, v, placeholder="") => {
+        const safeVal = (v !== null && v !== undefined) ? escHtml(v) : '';
+        return `<textarea id="hr_${key}" rows="2" placeholder="${placeholder}" oninput="autoResize(this)" onfocus="autoResize(this)">${safeVal}</textarea>`;
+    };
+
+    const hrRows = [
+        { section: '👤 TA & Source Info' },
+        { label: 'TA SPOC',           value: hrInputVal('ta_spoc', p.ta_spoc, 'Name of TA assigning this candidate') },
+        { label: 'Name of Source',    value: hrInputVal('name_of_source', p.name_of_source, 'Referral name / job portal source') },
+        { section: '📍 Personal Details' },
+        { label: 'Native Location',   value: hrInputVal('native_location', p.native_location, 'Hometown / native city') },
+        { label: 'Offer in Hand',     value: hrInputVal('offer_in_hand', p.offer_in_hand, 'e.g. Yes – ₹8 LPA from XYZ') },
+        { label: 'Shift Flexibility',  value: hrInputVal('shift_flexibility', p.shift_flexibility, 'e.g. Flexible / Day only / Night ok') },
+        { label: 'Date of Joining',   value: hrInputVal('doj', p.doj, 'e.g. 2025-08-01 or ASAP') },
+        { section: '📝 Notes' },
+        { label: 'Reason for Change', value: hrTextareaVal('reason_for_change', p.reason_for_change, 'Why is the candidate looking for a change?') },
+        { label: 'TA / HR Comments',  value: hrTextareaVal('ta_hr_comments', p.ta_hr_comments, 'Any internal notes or observations…') },
+        { label: 'Offer Details',     value: hrTextareaVal('offer_details', p.offer_details, 'CTC, designation, perks, etc.') },
     ];
 
-    let formHtml = '';
-    hrFields.forEach(f => {
-        const currentVal = escHtml(p[f.key] || '');
-        if (f.type === 'textarea') {
-            formHtml += `
-            <div class="hr-form-group">
-                <label class="hr-form-label">${f.label}</label>
-                <textarea id="hr_${f.key}" class="hr-form-input" rows="2"
-                    placeholder="${f.placeholder}">${currentVal}</textarea>
-            </div>`;
-        } else {
-            formHtml += `
-            <div class="hr-form-group">
-                <label class="hr-form-label">${f.label}</label>
-                <input type="text" id="hr_${f.key}" class="hr-form-input"
-                    value="${currentVal}" placeholder="${f.placeholder}">
-            </div>`;
-        }
-    });
+    document.getElementById('ci-hr-body').innerHTML = buildAccordion(hrRows) + `
+        <div style="padding: 0 1rem 1rem 1rem;">
+            <button class="btn-save-hr" id="ci-save-btn" onclick="saveHR()">
+                <i class="fa-solid fa-floppy-disk"></i> Save HR Details
+            </button>
+        </div>`;
 
-    formHtml += `
-        <button class="btn-save-hr" id="ci-save-btn" onclick="saveHR()">
-            <i class="fa-solid fa-floppy-disk"></i> Save HR Details
-        </button>`;
+    // Trigger auto-resize on load
+    setTimeout(() => {
+        document.querySelectorAll('.md-outlined-input textarea').forEach(el => autoResize(el));
+    }, 10);
+}
 
-    document.getElementById('ci-hr-body').innerHTML = `<div style="padding: 1rem 1.2rem;">${formHtml}</div>`;
+// ── Accordion Toggle ───────────────────────────────────────────────────────
+function toggleSection(headerEl) {
+    headerEl.classList.toggle('expanded');
+    const wrapper = headerEl.nextElementSibling;
+    wrapper.classList.toggle('expanded');
+    // Ensure textareas resize properly when revealed since scrollHeight is 0 when hidden
+    if (wrapper.classList.contains('expanded')) {
+        setTimeout(() => {
+            wrapper.querySelectorAll('textarea').forEach(el => autoResize(el));
+        }, 300); // Wait for transition 
+    }
+}
+
+// ── Auto-resize textareas ──────────────────────────────────────────────────
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
 }
 
 // ── Save HR fields ─────────────────────────────────────────────────────────
@@ -489,6 +692,14 @@ async function saveHR() {
         payload[k] = el ? el.value.trim() : '';
     });
 
+    const editKeys = ['full_name', 'phone', 'email', 'current_company', 'current_title', 
+                      'total_experience', 'relative_experience', 'technical_skills', 'certifications',
+                      'current_location', 'relocation', 'notice_period', 'source', 'education'];
+    editKeys.forEach(k => {
+        const el = document.getElementById(`edit_${k}`);
+        if (el) payload[k] = el.value.trim();
+    });
+
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
 
@@ -500,7 +711,7 @@ async function saveHR() {
         });
         const data = await res.json();
         if (data.success) {
-            showToast('HR details saved successfully!', false);
+            showToast('Candidate Details saved successfully!', false);
         } else {
             showToast('Save failed: ' + (data.error || 'Unknown error'), true);
         }
