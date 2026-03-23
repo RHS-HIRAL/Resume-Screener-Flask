@@ -83,6 +83,13 @@
                         <span>Call Evaluation</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="{{ url_for('views.call_eval_results') }}"
+                        class="nav-link {% if request.endpoint == 'views.call_eval_results' %}active{% endif %}">
+                        <i class="fa-solid fa-chart-bar"></i>
+                        <span>Eval Results</span>
+                    </a>
+                </li>
             </nav>
 
             {% if current_user.is_authenticated %}

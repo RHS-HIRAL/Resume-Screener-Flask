@@ -78,3 +78,9 @@ def responses():
 @login_required
 def candidate_information():
     return render_template("candidate_information.html")
+
+@views_bp.route("/call-eval-results")
+@login_required
+def call_eval_results():
+    """UI for viewing Call Evaluation Results."""
+    return render_template("call_eval_results.html")

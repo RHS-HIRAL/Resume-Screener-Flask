@@ -114,6 +114,8 @@ class JobDescription:
     employment_type: str = ""
     sections: list = field(default_factory=list)
     scraped_date: str = ""
+    wp_id: str = ""
+    date_posted: str = ""
 
     @property
     def safe_slug(self):
@@ -121,6 +123,8 @@ class JobDescription:
 
     @property
     def pdf_filename(self):
+        if self.wp_id:
+            return f"JD_{self.wp_id}_{self.safe_slug}.pdf"
         return f"JD_{self.safe_slug}.pdf"
 
 
@@ -274,6 +278,26 @@ class SyncSharePointManager:
                 json=fields,
             )
 
+    def set_folder_metadata(self, folder_path: str, metadata: dict):
+        """Sets metadata on a SharePoint folder's listItem."""
+        drive_id = self._get_drive_id()
+        try:
+            resp = self._request(
+                "GET",
+                f"{self.base}/drives/{drive_id}/root:/{quote(folder_path.strip('/'))}",
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                item_id = resp.json().get("id", "")
+                if item_id and metadata:
+                    self._request(
+                        "PATCH",
+                        f"{self.base}/drives/{drive_id}/items/{item_id}/listItem/fields",
+                        json=metadata,
+                    )
+        except Exception as e:
+            logger.error(f"Failed to set folder metadata on {folder_path}: {e}")
+
     def _content_type(self, filename: str) -> str:
         ext = filename.lower().rsplit(".", 1)[-1]
         return {
@@ -414,34 +438,64 @@ class SyncSharePointManager:
         return filename.lower() in self._existing_jd_pdfs
 
     def _list_existing_jd_pdfs(self) -> set:
+        """Scan the jobs root folder AND all its subfolders for existing JD files."""
         try:
             drive_id = self._get_drive_id()
-            folder = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
-            url = (
-                f"{self.base}/drives/{drive_id}/root:/{quote(folder)}:/children"
-                f"?$select=name&$top=1000"
-            )
+            root = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
             names: set = set()
+
+            # Scan root level
+            url = (
+                f"{self.base}/drives/{drive_id}/root:/{quote(root)}:/children"
+                f"?$select=name,folder&$top=1000"
+            )
+            subfolders = []
             while url:
                 resp = self._request("GET", url)
-
                 if resp.status_code == 404:
                     return set()
                 resp.raise_for_status()
                 data = resp.json()
                 for item in data.get("value", []):
-                    names.add(item["name"].lower())
+                    if "folder" in item:
+                        subfolders.append(item["name"])
+                    else:
+                        names.add(item["name"].lower())
                 url = data.get("@odata.nextLink")
+
+            # Scan each subfolder for JD files
+            for sf_name in subfolders:
+                sf_path = f"{root}/{sf_name}"
+                sf_url = (
+                    f"{self.base}/drives/{drive_id}/root:/{quote(sf_path)}:/children"
+                    f"?$select=name&$top=1000"
+                )
+                while sf_url:
+                    resp = self._request("GET", sf_url)
+                    if resp.status_code == 404:
+                        break
+                    resp.raise_for_status()
+                    data = resp.json()
+                    for item in data.get("value", []):
+                        item_name = item["name"].lower()
+                        if item_name.startswith("jd_"):
+                            names.add(item_name)
+                    sf_url = data.get("@odata.nextLink")
+
             return names
         except Exception as e:
             logger.warning("Could not list existing JD PDFs: %s", e)
             return set()
 
     def upload_jd_pdf(
-        self, file_path: str, target_filename: str, metadata: dict = None
+        self, file_path: str, target_filename: str, metadata: dict = None,
+        subfolder: str = "",
     ) -> dict:
         drive_id = self._get_drive_id()
-        folder = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
+        if subfolder:
+            folder = f"{Config.SHAREPOINT_JOBS_FOLDER.strip('/')}/{subfolder}"
+        else:
+            folder = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
         self._ensure_folder(drive_id, folder)
         item = self._simple_upload(drive_id, folder, target_filename, file_path)
         if metadata:
@@ -458,8 +512,12 @@ class SyncSharePointManager:
         filename: str,
         metadata: dict = None,
         skip_existing: bool = True,
+        subfolder: str = "",
     ):
-        folder = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
+        if subfolder:
+            folder = f"{Config.SHAREPOINT_JOBS_FOLDER.strip('/')}/{subfolder}"
+        else:
+            folder = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
         remote_path = f"{folder}/{filename}"
         if skip_existing and self.file_exists(remote_path):
             return None

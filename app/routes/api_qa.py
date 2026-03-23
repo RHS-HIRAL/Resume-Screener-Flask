@@ -1,6 +1,7 @@
 # app/routes/api_qa.py — API endpoints for Call Recording QA with async polling.
 
 import os
+import math
 import re
 import tempfile
 import threading
@@ -12,8 +13,15 @@ from app.db.candidates import (
     get_candidate_by_visible_id,
     get_all_candidates,
     update_candidate_qa_score,
+    update_call_selection_status,
 )
-from app.db.qa_results import save_qa_result, get_qa_results_by_candidate_fk
+from app.db.qa_results import (
+    save_qa_result,
+    get_qa_results_by_candidate_fk,
+    get_all_evaluated_candidates,
+    get_latest_evaluation_for_candidate,
+    update_call_eval_decision,
+)
 from app.services.call_qa import (
     start_transcription,
     check_transcription_status,
@@ -523,11 +531,18 @@ def api_qa_evaluate():
                 f"{score_text[:400]}"
             )
 
-        print(f"[QA] Numeric score extracted: {raw_score}/{max_score}")
+        # Normalize to 0-100 scale, ceiling-rounded
+        if max_score and max_score > 0:
+            normalized_score = math.ceil((raw_score / max_score) * 100)
+        else:
+            normalized_score = 0
+
+        print(f"[QA] Normalized score: {normalized_score}/100 (raw {raw_score}/{max_score})")
 
         # Save to database — store confirmed question count and max_score in token_meta
         scoring_result["token_meta"]["confirmed_questions"] = confirmed_numbers
         scoring_result["token_meta"]["max_score"] = max_score
+        scoring_result["token_meta"]["raw_score"] = raw_score
 
         qa_row_id = save_qa_result(
             candidate_fk=candidate["id"],
@@ -540,13 +555,14 @@ def api_qa_evaluate():
             token_meta=scoring_result["token_meta"],
         )
 
-        update_candidate_qa_score(candidate_id, raw_score)
+        update_candidate_qa_score(candidate_id, normalized_score)
 
         return jsonify(
             {
                 "success": True,
                 "score_text": score_text,
-                "numeric_score": raw_score,
+                "numeric_score": normalized_score,
+                "raw_score": raw_score,
                 "max_score": max_score,
                 "confirmed_question_count": len(confirmed_q_objects),
                 "qa_row_id": qa_row_id,
@@ -594,3 +610,155 @@ def api_qa_results(candidate_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CALL EVALUATION RESULTS ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@api_qa_bp.route("/api/qa/evaluated-candidates")
+@login_required
+def api_evaluated_candidates():
+    """Return all candidates with a qa_score for the Eval Results page."""
+    try:
+        candidates = get_all_evaluated_candidates()
+        for c in candidates:
+            if c.get("eval_date"):
+                c["eval_date"] = c["eval_date"].isoformat()
+            # token_meta is JSONB, already a dict
+        return jsonify({"success": True, "candidates": candidates})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_qa_bp.route("/api/qa/evaluation-detail/<string:candidate_id>")
+@login_required
+def api_evaluation_detail(candidate_id):
+    """Return full evaluation detail (score_text, transcript, token_meta) for side panel."""
+    try:
+        candidate = get_candidate_by_visible_id(candidate_id)
+        if not candidate:
+            return jsonify({"error": "Candidate not found"}), 404
+
+        eval_result = get_latest_evaluation_for_candidate(candidate["id"])
+        if not eval_result:
+            return jsonify({"error": "No evaluation found for this candidate"}), 404
+
+        if eval_result.get("created_at"):
+            eval_result["created_at"] = eval_result["created_at"].isoformat()
+
+        return jsonify({
+            "success": True,
+            "candidate": {
+                "id": candidate["id"],
+                "candidate_id": candidate["candidate_id"],
+                "full_name": candidate.get("full_name", ""),
+                "email": candidate.get("email", ""),
+                "role_name": candidate.get("role_name", ""),
+                "match_score": candidate.get("match_score"),
+                "qa_score": candidate.get("qa_score"),
+                "call_selection_status": candidate.get("call_selection_status"),
+                "resume_filename": candidate.get("resume_filename", ""),
+            },
+            "evaluation": eval_result,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@api_qa_bp.route("/api/qa/set-next-round", methods=["POST"])
+@login_required
+def api_set_next_round():
+    """Deprecated alias — calls set-call-status internally."""
+    return api_set_call_status()
+
+
+@api_qa_bp.route("/api/qa/set-call-status", methods=["POST"])
+@login_required
+def api_set_call_status():
+    """
+    Set (or clear) the call selection status for a candidate.
+    Body: { "candidate_id": "940201", "status": "online_test" | "technical_round" | "rejected" | null }
+    Passing null or omitting status resets to Pending.
+    NEVER modifies selection_status — call-round decisions are independent.
+    """
+    data = request.json or {}
+    candidate_id = data.get("candidate_id", "").strip()
+    raw_status = data.get("status")  # can be null/None for Pending
+
+    if not candidate_id:
+        return jsonify({"error": "candidate_id is required"}), 400
+
+    valid_statuses = {"online_test", "technical_round", "rejected"}
+    if raw_status is not None:
+        status = str(raw_status).strip().lower()
+        if status not in valid_statuses:
+            return jsonify({"error": f"Invalid status. Must be one of: {', '.join(valid_statuses)} or null"}), 400
+    else:
+        status = None  # Pending / undo
+
+    candidate = get_candidate_by_visible_id(candidate_id)
+    if not candidate:
+        return jsonify({"error": "Candidate not found"}), 404
+
+    try:
+        update_call_selection_status(candidate["id"], status)
+        update_call_eval_decision(candidate["id"], status or "pending")
+
+        threading.Thread(
+            target=_background_sp_eval_sync,
+            args=(candidate, status),
+            daemon=True,
+        ).start()
+
+        return jsonify({"success": True, "status": status})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def _background_sp_eval_sync(candidate: dict, status: str | None):
+    """
+    Background: sync CallEvalScore + CallSelectionStatus to SharePoint.
+    Always overwrites both fields.
+    Targets only the PDF/DOC/DOCX file (not the .txt companion).
+    """
+    try:
+        sp_updater = SharePointMatchScoreUpdater()
+        resume_filename = candidate.get("resume_filename", "")
+        role_name = candidate.get("role_name", "")
+
+        if not resume_filename:
+            print(f"[SP SYNC] Skipped — no resume_filename for {candidate.get('full_name')}")
+            return
+
+        # 1. Find matching items in SharePoint
+        matches = sp_updater.find_matching_items(resume_filename, role_hint=role_name)
+
+        # 2. Filter to PDF/DOC/DOCX only — skip .txt files
+        doc_matches = [
+            m for m in matches
+            if m["name"].lower().endswith((".pdf", ".doc", ".docx"))
+        ]
+
+        if not doc_matches:
+            print(f"[SP SYNC] No PDF/DOC/DOCX found in SharePoint for '{resume_filename}'")
+            return
+
+        # 3. Use the first matching document file
+        item_id = doc_matches[0]["id"]
+
+        sp_label = status.replace("_", " ").title() if status else "Pending"
+        status_str, msg, _ = sp_updater.push_metadata(
+            filename=resume_filename,
+            metadata={
+                "CallEvalScore": str(candidate.get("qa_score", "")),
+                "CallSelectionStatus": sp_label,
+            },
+            role_hint=role_name,
+            confirmed_item_id=item_id,
+            overwrite=True,
+        )
+        print(f"[SP SYNC] {candidate.get('full_name')}: {status_str} — {msg}")
+    except Exception as e:
+        print(f"[SP ERROR] Call eval sync failed: {e}")

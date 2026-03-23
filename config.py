@@ -78,6 +78,12 @@ class Config:
     SYNC_LAST_SYNC_FILE = os.getenv("SYNC_LAST_SYNC_FILE", "data_folder/last_sync.json")
     CAREERS_URL = os.getenv("CAREERS_URL", "https://si2tech.com/jobs/")
     SITE_BASE_URL = os.getenv("SITE_BASE_URL", "https://si2tech.com")
+
+    # WordPress REST API (WP Job Openings plugin)
+    WP_SITE_URL = os.getenv("WP_SITE_URL", "https://si2tech.com")
+    WP_USERNAME = os.getenv("WP_USERNAME", "")
+    WP_APP_PASSWORD = os.getenv("WP_APP_PASSWORD", "")
+
     TEAMS_WEBHOOK_URL = os.getenv("TEAMS_WEBHOOK_URL", "")
     TESSERACT_CMD = os.getenv(
         "TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe"

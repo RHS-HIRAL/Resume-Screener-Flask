@@ -70,6 +70,10 @@ def init_db() -> None:
         );
         """)
 
+        # 2b. WordPress integration columns (safe migration)
+        cur.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS wp_job_id INTEGER;")
+        cur.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS date_posted TEXT;")
+
         # 3. Atomic Sequence Table (Prevents candidate_id race conditions)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS job_sequences (
@@ -128,6 +132,15 @@ def init_db() -> None:
         ]
         for col_def in hr_columns:
             cur.execute(f"ALTER TABLE candidates ADD COLUMN IF NOT EXISTS {col_def};")
+
+        # 4d. Call evaluation next-round decision (safe migration)
+        cur.execute("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS next_round TEXT DEFAULT NULL;")
+
+        # 4e. Dedicated call-round selection status (does NOT affect resume selection_status)
+        cur.execute("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS call_selection_status TEXT DEFAULT NULL;")
+
+        # 5b. Call evaluation decision audit column (safe migration)
+        cur.execute("ALTER TABLE call_qa_results ADD COLUMN IF NOT EXISTS call_eval_decision TEXT DEFAULT NULL;")
 
         # 5. Call QA Results (Optimized: FK points to candidate.id, not textual ID)
         cur.execute("""

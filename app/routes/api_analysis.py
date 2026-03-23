@@ -56,7 +56,7 @@ def _compute_screened_with(jd_filename: str) -> str:
     Stripping the 'JD_' prefix and file extension.
     e.g. "JD_full-stack-development-intern.txt" → "full-stack-development-intern"
     """
-    value = re.sub(r"(?i)^JD_", "", jd_filename)
+    value = re.sub(r"(?i)^JD_(?:\d+_)?", "", jd_filename)
     return os.path.splitext(value)[0]
 
 
@@ -157,7 +157,7 @@ def _background_sp_push(
                 elif not source:
                     reasons.append("Source unknown/empty")
                 if reasons:
-                    print(f"[SP RENAME] Skipped ({', '.join(reasons)}) for {filename}")
+                    pass
 
         except Exception as e:
             print(f"[SP ERROR] Background sync failed for {filename}: {e}")
