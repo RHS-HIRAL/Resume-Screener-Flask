@@ -70,6 +70,10 @@ def init_db() -> None:
         );
         """)
 
+        # 2b. WordPress integration columns (safe migration)
+        cur.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS wp_job_id INTEGER;")
+        cur.execute("ALTER TABLE jobs ADD COLUMN IF NOT EXISTS date_posted TEXT;")
+
         # 3. Atomic Sequence Table (Prevents candidate_id race conditions)
         cur.execute("""
         CREATE TABLE IF NOT EXISTS job_sequences (

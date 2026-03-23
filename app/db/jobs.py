@@ -2,20 +2,29 @@ from psycopg2.extras import Json
 from app.db.connection import get_cursor
 
 
-def upsert_job(job_id: int, jd_filename: str, role_name: str, jd_text: str) -> int:
+def upsert_job(
+    job_id: int,
+    jd_filename: str,
+    role_name: str,
+    jd_text: str,
+    wp_job_id: int = None,
+    date_posted: str = None,
+) -> int:
     """Insert a job or update its JD content if it already exists."""
     with get_cursor(commit=True) as cur:
         cur.execute(
             """
-            INSERT INTO jobs (id, jd_filename, role_name, jd_text)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO jobs (id, jd_filename, role_name, jd_text, wp_job_id, date_posted)
+            VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE SET
                 jd_filename = EXCLUDED.jd_filename,
                 role_name   = EXCLUDED.role_name,
-                jd_text     = EXCLUDED.jd_text
+                jd_text     = EXCLUDED.jd_text,
+                wp_job_id   = COALESCE(EXCLUDED.wp_job_id, jobs.wp_job_id),
+                date_posted = COALESCE(EXCLUDED.date_posted, jobs.date_posted)
             RETURNING id
             """,
-            (job_id, jd_filename, role_name, jd_text),
+            (job_id, jd_filename, role_name, jd_text, wp_job_id, date_posted),
         )
         return cur.fetchone()["id"]
 
@@ -25,7 +34,8 @@ def get_all_jobs() -> list[dict]:
     with get_cursor() as cur:
         cur.execute(
             """
-            SELECT id, jd_filename, role_name, jd_text, form_excel_name, scoring_weights, created_at 
+            SELECT id, jd_filename, role_name, jd_text, form_excel_name,
+                   scoring_weights, wp_job_id, date_posted, created_at
             FROM jobs ORDER BY id DESC
             """
         )

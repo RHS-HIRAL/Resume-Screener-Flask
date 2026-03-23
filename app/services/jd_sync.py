@@ -22,6 +22,7 @@ from app.services.sharepoint_sync import (
     JobDescription,
     logger,
 )
+from app.services.wp_jobs import fetch_wp_jobs
 
 # ── Optional dependencies ──────────────────────────────────────────────────────
 try:
@@ -562,6 +563,14 @@ def run_jd_pipeline(auth: GraphAuthProvider) -> dict:
         }
 
     os.makedirs(Config.SYNC_TEMP_JD_DIR, exist_ok=True)
+
+    # Fetch WordPress job data for enrichment
+    wp_jobs = fetch_wp_jobs()  # slug → {"wp_id": ..., "date_posted": ...}
+    if wp_jobs:
+        logger.info("WordPress data available for %d jobs.", len(wp_jobs))
+    else:
+        logger.warning("No WordPress data — falling back to slug-only filenames.")
+
     results = {
         "uploaded": 0,
         "skipped": 0,
@@ -570,14 +579,63 @@ def run_jd_pipeline(auth: GraphAuthProvider) -> dict:
         "text_skipped": 0,
     }
 
+    # Build a map of job_code → subfolder name for routing JDs
+    # Folder names are like "8977 Full Stack Development Intern"
+    code_to_folder = {}
+    try:
+        root = Config.SHAREPOINT_JOBS_FOLDER.strip("/")
+        drive_id = sp._get_drive_id()
+        from urllib.parse import quote as _quote
+        folder_url = (
+            f"{sp.base}/drives/{drive_id}/root:/{_quote(root)}:/children"
+            f"?$select=name,folder&$top=1000"
+        )
+        resp = sp._request("GET", folder_url)
+        if resp.ok:
+            for item in resp.json().get("value", []):
+                if "folder" in item:
+                    folder_name = item["name"]
+                    # Extract leading numeric job code from folder name
+                    m = re.match(r"^(\d{4,})", folder_name)
+                    if m:
+                        code_to_folder[m.group(1)] = folder_name
+        logger.info("Mapped %d job-code folders for JD routing.", len(code_to_folder))
+    except Exception as e:
+        logger.warning("Could not list job folders for routing: %s", e)
+
     for job_info in job_urls:
         url = job_info["url"]
         title = job_info.get("title", "")
         slug = url.rstrip("/").split("/")[-1]
         safe_slug = re.sub(r"[^\w\-]", "", slug)
-        pdf_filename = f"JD_{safe_slug}.pdf"
-        txt_filename = f"JD_{safe_slug}.txt"
+
+        # Enrich with WordPress data
+        wp_data = wp_jobs.get(slug, {})
+        wp_id = str(wp_data.get("wp_id", ""))
+        date_posted = wp_data.get("date_posted", "")
+
+        # Build filenames (with wp_id when available)
+        if wp_id:
+            pdf_filename = f"JD_{wp_id}_{safe_slug}.pdf"
+            txt_filename = f"JD_{wp_id}_{safe_slug}.txt"
+        else:
+            pdf_filename = f"JD_{safe_slug}.pdf"
+            txt_filename = f"JD_{safe_slug}.txt"
+
         txt_remote = f"{Config.SHAREPOINT_JOBS_FOLDER.strip('/')}/{txt_filename}"
+
+        # Route JD to the matching job role subfolder
+        target_subfolder = code_to_folder.get(wp_id, "") if wp_id else ""
+        if target_subfolder:
+            txt_remote = f"{Config.SHAREPOINT_JOBS_FOLDER.strip('/')}/{target_subfolder}/{txt_filename}"
+            logger.info("Routing JD to subfolder: %s", target_subfolder)
+            
+            # Set metadata (DatePosted) on the folder itself
+            if date_posted:
+                sp.set_folder_metadata(
+                    f"{Config.SHAREPOINT_JOBS_FOLDER.strip('/')}/{target_subfolder}",
+                    {"DatePosted": date_posted}
+                )
 
         if sp.jd_pdf_exists(pdf_filename):
             results["skipped"] += 1
@@ -586,13 +644,19 @@ def run_jd_pipeline(auth: GraphAuthProvider) -> dict:
             else:
                 try:
                     jd = parse_job_detail(url, fallback_title=title)
+                    jd.wp_id = wp_id
+                    jd.date_posted = date_posted
                     text_content = jd_to_text(jd)
                     if text_content.strip():
                         sp.upload_jd_text(
                             text_content,
                             txt_filename,
-                            metadata={"Title": jd.title, "JDTitle": jd.title},
+                            metadata={
+                                "Title": jd.title,
+                                "JDTitle": jd.title,
+                            },
                             skip_existing=False,
+                            subfolder=target_subfolder,
                         )
                         results["text_uploaded"] += 1
                 except Exception as e:
@@ -601,6 +665,8 @@ def run_jd_pipeline(auth: GraphAuthProvider) -> dict:
 
         try:
             jd = parse_job_detail(url, fallback_title=title)
+            jd.wp_id = wp_id
+            jd.date_posted = date_posted
         except Exception as e:
             logger.error("Parse error for %s: %s", url, e)
             results["failed"] += 1
@@ -622,7 +688,8 @@ def run_jd_pipeline(auth: GraphAuthProvider) -> dict:
                 "JDScrapedDate": jd.scraped_date,
                 "JDSourceURL": jd.url,
             }
-            sp.upload_jd_pdf(local_pdf_path, pdf_filename, jd_metadata)
+            sp.upload_jd_pdf(local_pdf_path, pdf_filename, jd_metadata,
+                            subfolder=target_subfolder)
             results["uploaded"] += 1
         except Exception as e:
             logger.error("PDF generate/upload failed for %s: %s", slug, e)
@@ -641,7 +708,11 @@ def run_jd_pipeline(auth: GraphAuthProvider) -> dict:
                 resp = sp.upload_jd_text(
                     text_content,
                     txt_filename,
-                    metadata={"Title": jd.title, "JDTitle": jd.title},
+                    metadata={
+                        "Title": jd.title,
+                        "JDTitle": jd.title,
+                    },
+                    subfolder=target_subfolder,
                 )
                 if resp is None:
                     results["text_skipped"] += 1

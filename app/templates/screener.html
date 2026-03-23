@@ -22,20 +22,8 @@
 
         <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
             <div style="padding: 1.2rem; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid var(--border-color);">
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: var(--accent-amber); font-weight: 600;">
-                    <i class="fa-solid fa-clipboard-list"></i> 1. Select Job Description
-                </div>
-                <div class="form-group">
-                    <label class="form-label">JD File</label>
-                    <select id="sp_jd_select" class="form-control" required>
-                        <option value="">— Select JD —</option>
-                    </select>
-                </div>
-            </div>
-
-            <div style="padding: 1.2rem; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid var(--border-color);">
                 <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: var(--accent-emerald); font-weight: 600;">
-                    <i class="fa-solid fa-folder-open"></i> 2. Select Resume Folder
+                    <i class="fa-solid fa-folder-open"></i> 1. Select Resume Folder
                 </div>
                 <div class="form-group">
                     <label class="form-label">Subfolder</label>
@@ -44,6 +32,25 @@
                     </select>
                 </div>
                 <div id="selectionStatus" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem; display: none;"></div>
+            </div>
+
+            <div style="padding: 1.2rem; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid var(--border-color);">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; color: var(--accent-amber); font-weight: 600;">
+                    <i class="fa-solid fa-clipboard-list"></i> 2. Job Description
+                    <span id="jdAutoLabel" style="display: none; margin-left: auto; font-size: 0.7rem; padding: 2px 8px; border-radius: 6px; background: rgba(16,185,129,0.15); color: var(--accent-emerald); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;">Auto-matched</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">JD File</label>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <select id="sp_jd_select" class="form-control" required disabled style="flex: 1; opacity: 0.6;">
+                            <option value="">— Select a folder first —</option>
+                        </select>
+                        <button id="jdModifyBtn" type="button" class="btn" onclick="unlockJdSelect()"
+                            style="display: none; padding: 0.4rem 0.8rem; font-size: 0.78rem; background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: var(--text-secondary); white-space: nowrap; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                            <i class="fa-solid fa-pen-to-square"></i> Modify
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -436,14 +443,70 @@
         }
     }
 
+    function unlockJdSelect() {
+        const jdSelect = document.getElementById('sp_jd_select');
+        jdSelect.disabled = false;
+        jdSelect.style.opacity = '1';
+        document.getElementById('jdAutoLabel').style.display = 'none';
+        document.getElementById('jdModifyBtn').style.display = 'none';
+    }
+
+    function lockJdSelect() {
+        const jdSelect = document.getElementById('sp_jd_select');
+        jdSelect.disabled = true;
+        jdSelect.style.opacity = '0.6';
+    }
+
     function setupListeners() {
         document.getElementById('refreshSp').onclick = fetchFiles;
         document.getElementById('sp_jd_select').onchange = validateSelections;
 
         document.getElementById('sp_folder_select').onchange = () => {
             const folder = document.getElementById('sp_folder_select').value;
+            const jdSelect = document.getElementById('sp_jd_select');
             const status = document.getElementById('selectionStatus');
             const rescoreToggleWrap = document.getElementById('rescoreToggleContainer');
+            const autoLabel = document.getElementById('jdAutoLabel');
+            const modifyBtn = document.getElementById('jdModifyBtn');
+
+            // ── Auto-select matching JD by job code in folder name ──────────
+            let matched = false;
+            if (folder) {
+                const jobCodeMatch = folder.match(/^(\d{4,})/);
+                if (jobCodeMatch) {
+                    const jobCode = jobCodeMatch[1];
+                    const matchingJd = spData.jds.find(jd => {
+                        const name = jd.name || '';
+                        return name.match(new RegExp(`^JD_${jobCode}_`, 'i'))
+                            || name.match(new RegExp(`_${jobCode}_`, 'i'));
+                    });
+                    if (matchingJd) {
+                        jdSelect.value = matchingJd.id;
+                        matched = true;
+                        // Lock the JD dropdown — show Auto-matched + Modify button
+                        lockJdSelect();
+                        autoLabel.style.display = 'inline-block';
+                        modifyBtn.style.display = 'inline-flex';
+                    }
+                }
+                // If no match found, unlock JD so user picks manually
+                if (!matched) {
+                    jdSelect.disabled = false;
+                    jdSelect.style.opacity = '1';
+                    autoLabel.style.display = 'none';
+                    modifyBtn.style.display = 'none';
+                    if (!jdSelect.value) {
+                        jdSelect.querySelector('option[value=""]').textContent = '— Select JD —';
+                    }
+                }
+            } else {
+                // No folder selected — reset JD
+                jdSelect.value = '';
+                lockJdSelect();
+                jdSelect.querySelector('option[value=""]').textContent = '— Select a folder first —';
+                autoLabel.style.display = 'none';
+                modifyBtn.style.display = 'none';
+            }
 
             if (folder && spData.resumes[folder]) {
                 const allFiles = spData.resumes[folder];
