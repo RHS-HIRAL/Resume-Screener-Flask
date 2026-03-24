@@ -42,7 +42,12 @@ def _background_bulk_sp_push(candidates: list, status: str):
                 metadata = {"SelectionStatus": status}
                 # Role_name is fetched via JOIN in the new DB structure
                 role_name = candidate.get("role_name", "")
-                sp.push_metadata(candidate["resume_filename"], metadata, role_hint=role_name, overwrite=True)
+                sp.push_metadata(
+                    candidate["resume_filename"],
+                    metadata,
+                    role_hint=role_name,
+                    overwrite=True,
+                )
         print("[SP BULK SYNC] Completed bulk sync.")
     except Exception as e:
         print(f"[SP BULK SYNC ERROR] {e}")
@@ -502,6 +507,8 @@ def api_delete_candidates():
 
         def _background_sp_delete(rows: list):
             try:
+                from pathlib import Path as _Path
+
                 sp = SharePointMatchScoreUpdater()
                 for row in rows:
                     fname = row.get("resume_filename")
@@ -510,6 +517,10 @@ def api_delete_candidates():
                         continue
                     status, msg = sp.delete_file(fname, role_hint=role)
                     print(f"[SP DELETE] {fname} → {status}: {msg}")
+
+                    txt_fname = _Path(fname).stem + ".txt"
+                    txt_status, txt_msg = sp.delete_file(txt_fname, role_hint=role)
+                    print(f"[SP DELETE] {txt_fname} → {txt_status}: {txt_msg}")
             except Exception as ex:
                 print(f"[SP DELETE ERROR] {ex}")
 
