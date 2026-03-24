@@ -226,10 +226,20 @@ def mark_outreach_sent(candidate_id: int, meeting_link: str = "") -> None:
 def update_candidate_form_response(email: str, response_json: dict) -> bool:
     if not isinstance(response_json, dict):
         return False
+        
+    # Attempt to extract phone number from common form keys
+    new_phone = response_json.get("Phone Number") or ""
+    
     with get_cursor(commit=True) as cur:
         cur.execute(
-            "UPDATE candidates SET form_responses = %s::jsonb WHERE LOWER(email) = LOWER(%s)",
-            (Json(response_json), email),
+            """
+            UPDATE candidates 
+            SET 
+                form_responses = %s::jsonb,
+                phone = COALESCE(NULLIF(phone, ''), NULLIF(%s, ''))
+            WHERE LOWER(email) = LOWER(%s)
+            """,
+            (Json(response_json), new_phone, email),
         )
         return cur.rowcount > 0
 
