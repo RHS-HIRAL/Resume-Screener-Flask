@@ -118,7 +118,6 @@ def init_db() -> None:
         ALTER TABLE candidates ADD COLUMN IF NOT EXISTS rescore_feedback TEXT DEFAULT NULL;
         """)
 
-        # 4c. HR additional info columns (safe migration)
         hr_columns = [
             "ta_spoc TEXT",
             "native_location TEXT",
@@ -129,6 +128,8 @@ def init_db() -> None:
             "offer_details TEXT",
             "doj TEXT",
             "name_of_source TEXT",
+            "current_ctc TEXT",
+            "expected_ctc TEXT",
         ]
         for col_def in hr_columns:
             cur.execute(f"ALTER TABLE candidates ADD COLUMN IF NOT EXISTS {col_def};")
