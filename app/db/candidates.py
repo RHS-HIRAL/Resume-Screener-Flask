@@ -491,6 +491,8 @@ def get_candidate_full_profile(candidate_id: int) -> Optional[dict]:
         "offer_details": data.get("offer_details", "") or "",
         "doj": data.get("doj", "") or "",
         "name_of_source": data.get("name_of_source", "") or "",
+        "current_ctc": data.get("current_ctc", "") or "",
+        "expected_ctc": data.get("expected_ctc", "") or "",
     }
 
 
@@ -591,6 +593,8 @@ def update_candidate_full_profile(candidate_id: int, data: dict) -> bool:
                 offer_details      = %s,
                 doj                = %s,
                 name_of_source     = %s,
+                current_ctc        = %s,
+                expected_ctc       = %s,
                 raw_json           = %s,
                 form_responses     = %s::jsonb
             WHERE id = %s
@@ -611,6 +615,8 @@ def update_candidate_full_profile(candidate_id: int, data: dict) -> bool:
             data.get("offer_details") or None,
             data.get("doj") or None,
             data.get("name_of_source") or None,
+            data.get("current_ctc") or None,
+            data.get("expected_ctc") or None,
             json.dumps(raw_json, ensure_ascii=False),
             json.dumps(form_responses),
             candidate_id,

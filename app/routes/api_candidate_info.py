@@ -198,4 +198,4 @@ def api_ci_resume(candidate_id: int):
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": str(e)}), 500
