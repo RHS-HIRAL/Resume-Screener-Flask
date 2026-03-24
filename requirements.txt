@@ -39,3 +39,4 @@ Werkzeug>=3.0.0              # Password hashing (generate_password_hash / check_
 
 # ── PDF Generation ────────────────────────────────────────────────────────────
 reportlab
+mammoth

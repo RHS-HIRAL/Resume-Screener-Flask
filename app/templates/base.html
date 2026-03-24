@@ -36,35 +36,35 @@
             <nav class="nav-links">
                 <li class="nav-item">
                     <a href="{{ url_for('views.dashboard') }}"
-                        class="nav-link {% if request.endpoint == 'views.dashboard' or request.endpoint == 'dashboard' %}active{% endif %}">
+                        class="nav-link {% if request.endpoint == 'views.dashboard' %}active{% endif %}">
                         <i class="fa-solid fa-house"></i>
                         <span>Dashboard</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="{{ url_for('views.manual_upload') }}"
-                        class="nav-link {% if request.endpoint == 'views.manual_upload' or request.endpoint == 'manual_upload' %}active{% endif %}">
+                        class="nav-link {% if request.endpoint == 'views.manual_upload' %}active{% endif %}">
                         <i class="fa-solid fa-cloud-arrow-up"></i>
                         <span>Manual Upload</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="{{ url_for('views.screener') }}"
-                        class="nav-link {% if request.endpoint == 'screener' %}active{% endif %}">
+                        class="nav-link {% if request.endpoint == 'views.screener' %}active{% endif %}">
                         <i class="fa-solid fa-file-invoice"></i>
                         <span>Screen Resume</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="{{ url_for('views.outreach') }}"
-                        class="nav-link {% if request.endpoint == 'outreach' %}active{% endif %}">
+                        class="nav-link {% if request.endpoint == 'views.outreach' %}active{% endif %}">
                         <i class="fa-solid fa-paper-plane"></i>
                         <span>Outreach</span>
                     </a>
                 </li>
                 <li class="nav-item">
                     <a href="{{ url_for('views.responses') }}"
-                        class="nav-link {% if request.endpoint == 'responses' %}active{% endif %}">
+                        class="nav-link {% if request.endpoint == 'views.responses' %}active{% endif %}">
                         <i class="fa-solid fa-clipboard-check"></i>
                         <span>Review Responses</span>
                     </a>
@@ -78,7 +78,7 @@
                 </li>
                 <li class="nav-item">
                     <a href="{{ url_for('api_qa.qa_page') }}"
-                        class="nav-link {% if request.endpoint == 'qa_page' %}active{% endif %}">
+                        class="nav-link {% if request.endpoint == 'api_qa.qa_page' %}active{% endif %}">
                         <i class="fa-solid fa-microphone-lines"></i>
                         <span>Call Evaluation</span>
                     </a>
