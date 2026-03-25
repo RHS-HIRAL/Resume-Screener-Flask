@@ -1,3 +1,4 @@
+# app/db/connection.py — Database connection and schema initialization.
 import os
 from contextlib import contextmanager
 from psycopg2.extras import RealDictCursor
@@ -57,6 +58,19 @@ def init_db() -> None:
         );
         """)
 
+        # ── RBAC migration: add role column if it doesn't exist ──────────────
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'recruiter';"
+        )
+
+        # Back-fill role for any existing users based on is_admin flag.
+        # is_admin=1 → admin, is_admin=0 and role still default → recruiter (no change needed).
+        cur.execute("""
+            UPDATE users
+            SET role = 'admin'
+            WHERE is_admin = 1 AND (role IS NULL OR role = 'recruiter');
+        """)
+
         # 2. Jobs Table
         cur.execute("""
         CREATE TABLE IF NOT EXISTS jobs (
@@ -82,7 +96,7 @@ def init_db() -> None:
         );
         """)
 
-        # 4. Candidates Table (Optimized: No redundant role_name, flat statuses -> JSONB)
+        # 4. Candidates Table
         cur.execute("""
         CREATE TABLE IF NOT EXISTS candidates (
             id SERIAL PRIMARY KEY,
@@ -96,7 +110,7 @@ def init_db() -> None:
             current_company TEXT,
             total_experience REAL,
             match_score INTEGER,
-            match_breakdown JSONB,     -- Replaces exp_status, edu_status, loc_status, etc.
+            match_breakdown JSONB,
             resume_filename TEXT,
             sharepoint_link TEXT,
             outreach_sent INTEGER DEFAULT 0,
@@ -113,7 +127,7 @@ def init_db() -> None:
             );
         """)
 
-        # 4b. Add rescore_feedback column to existing databases (safe migration)
+        # 4b. rescore_feedback
         cur.execute("""
         ALTER TABLE candidates ADD COLUMN IF NOT EXISTS rescore_feedback TEXT DEFAULT NULL;
         """)
@@ -121,29 +135,28 @@ def init_db() -> None:
         hr_columns = [
             "ta_spoc TEXT",
             "native_location TEXT",
-            "offer_in_hand TEXT",
+            "offer_in_hand TEXT",  # encrypted
             "shift_flexibility TEXT",
             "reason_for_change TEXT",
-            "ta_hr_comments TEXT",
+            "ta_hr_comments TEXT",  # encrypted
             "offer_details TEXT",
             "doj TEXT",
             "name_of_source TEXT",
-            "current_ctc TEXT",
-            "expected_ctc TEXT",
+            "current_ctc TEXT",  # encrypted
+            "expected_ctc TEXT",  # encrypted
         ]
         for col_def in hr_columns:
             cur.execute(f"ALTER TABLE candidates ADD COLUMN IF NOT EXISTS {col_def};")
 
-        # 4d. Call evaluation next-round decision (safe migration)
-        cur.execute("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS next_round TEXT DEFAULT NULL;")
+        # 4d. Call evaluation columns
+        cur.execute(
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS next_round TEXT DEFAULT NULL;"
+        )
+        cur.execute(
+            "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS call_selection_status TEXT DEFAULT NULL;"
+        )
 
-        # 4e. Dedicated call-round selection status (does NOT affect resume selection_status)
-        cur.execute("ALTER TABLE candidates ADD COLUMN IF NOT EXISTS call_selection_status TEXT DEFAULT NULL;")
-
-        # 5b. Call evaluation decision audit column (safe migration)
-        cur.execute("ALTER TABLE call_qa_results ADD COLUMN IF NOT EXISTS call_eval_decision TEXT DEFAULT NULL;")
-
-        # 5. Call QA Results (Optimized: FK points to candidate.id, not textual ID)
+        # 5. Call QA Results
         cur.execute("""
         CREATE TABLE IF NOT EXISTS call_qa_results (
             id SERIAL PRIMARY KEY,
@@ -159,7 +172,11 @@ def init_db() -> None:
         );
         """)
 
-        # 6. Strategic Indexing for Performance
+        cur.execute(
+            "ALTER TABLE call_qa_results ADD COLUMN IF NOT EXISTS call_eval_decision TEXT DEFAULT NULL;"
+        )
+
+        # 6. Strategic Indexing
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_candidates_job_id ON candidates(job_id);"
         )

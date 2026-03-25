@@ -4,17 +4,18 @@ flask-login>=0.6.0
 flask-cors>=4.0.0
 
 # ── Database ──────────────────────────────────────────────────────────────────
-psycopg2-binary>=2.9.0       # PostgreSQL driver (binary wheel, no build deps needed)
+psycopg2-binary>=2.9.0
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 python-dotenv>=1.0.0
+
+# ── Security & Encryption ─────────────────────────────────────────────────────
+cryptography>=42.0.0
 
 # ── AI — Groq Question autodetect ─────────────────────────────────────────────
 groq>=0.9.0
 
 # ── AI — Google Gemini ────────────────────────────────────────────────────────
-# IMPORTANT: The code uses `import google.genai as genai` (new unified SDK).
-# This is the `google-genai` package — NOT the old `google-generativeai` package.
 google-genai>=0.8.0
 
 # ── AI — Sarvam Speech-to-Text ────────────────────────────────────────────────
@@ -22,20 +23,25 @@ sarvamai>=0.1.0
 
 # ── Data / File parsing ───────────────────────────────────────────────────────
 pandas>=2.2.0
-openpyxl>=3.1.0              # Excel read/write (.xlsx)
-PyPDF2>=3.0.0                # PDF text extraction
-python-docx>=1.1.0           # DOCX text extraction
+openpyxl>=3.1.0
+PyPDF2>=3.0.0
+python-docx>=1.1.0
 
 # ── Microsoft / SharePoint ────────────────────────────────────────────────────
-msal>=1.28.0                 # Azure AD / MSAL token acquisition
-requests>=2.31.0             # HTTP session for Graph API calls
+msal>=1.28.0
+requests>=2.31.0
 bs4
 
 # ── Pydantic (schema validation) ──────────────────────────────────────────────
-pydantic[email]>=2.0.0       # [email] extra enables EmailStr validator
+pydantic[email]>=2.0.0
+
+# ── OCR / Image processing ────────────────────────────────────────────────────
+pytesseract>=0.3.10          # Tesseract OCR wrapper
+pymupdf>=1.23.0              # PDF parsing (imported as fitz)
+Pillow>=10.0.0               # Image processing for OCR
 
 # ── Security ──────────────────────────────────────────────────────────────────
-Werkzeug>=3.0.0              # Password hashing (generate_password_hash / check_password_hash)
+Werkzeug>=3.0.0
 
 # ── PDF Generation ────────────────────────────────────────────────────────────
 reportlab

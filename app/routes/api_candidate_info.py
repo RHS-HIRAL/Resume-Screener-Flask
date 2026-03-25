@@ -2,7 +2,7 @@
 # API endpoints for the Candidate Information page.
 
 from flask import Blueprint, request, jsonify, Response, stream_with_context
-from flask_login import login_required
+from flask_login import login_required, current_user
 
 from app.db.candidates import (
     get_roles_with_selected_candidates,
@@ -41,7 +41,8 @@ def api_ci_candidates_for_role(job_id: int):
 def api_ci_profile(candidate_id: int):
     """Return the full enriched profile for a single candidate."""
     try:
-        profile = get_candidate_full_profile(candidate_id)
+        user_role = getattr(current_user, "role", "recruiter")
+        profile = get_candidate_full_profile(candidate_id, user_role=user_role)
         if not profile:
             return jsonify({"success": False, "error": "Candidate not found"}), 404
         return jsonify({"success": True, "profile": profile})
@@ -49,13 +50,16 @@ def api_ci_profile(candidate_id: int):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@api_candidate_info_bp.route("/api/candidate-info/<int:candidate_id>/hr", methods=["POST"])
+@api_candidate_info_bp.route(
+    "/api/candidate-info/<int:candidate_id>/hr", methods=["POST"]
+)
 @login_required
 def api_ci_save_hr(candidate_id: int):
     """Save the fully editable profile details for a candidate."""
     data = request.get_json(silent=True) or {}
     try:
-        updated = update_candidate_full_profile(candidate_id, data)
+        user_role = getattr(current_user, "role", "recruiter")
+        updated = update_candidate_full_profile(candidate_id, data, user_role=user_role)
         if not updated:
             return jsonify({"success": False, "error": "Candidate not found"}), 404
         return jsonify({"success": True})
@@ -76,25 +80,38 @@ def api_ci_resume(candidate_id: int):
          matches resume_filename (case-insensitive).
       4. Download and stream the bytes inline so the browser can render it.
     """
+    import logging
+    log = logging.getLogger(__name__)
+    log.info(f"[RESUME] ── Step 0: Request received for candidate_id={candidate_id}")
+
     try:
         profile = get_candidate_full_profile(candidate_id)
         if not profile:
+            log.warning(f"[RESUME] ✗ Step 1 FAILED: No profile found for candidate_id={candidate_id}")
             return jsonify({"success": False, "error": "Candidate not found"}), 404
+        log.info(f"[RESUME] ✓ Step 1: Profile loaded — full_name={profile.get('full_name')}")
 
         job_id = profile.get("job_id")
         resume_filename = profile.get("resume_filename", "").strip()
 
+        log.info(f"[RESUME]   job_id={job_id}, resume_filename='{resume_filename}'")
+
         if not job_id or not resume_filename:
+            log.warning(f"[RESUME] ✗ Step 2 FAILED: Missing resume info — job_id={job_id}, resume_filename='{resume_filename}'")
             return jsonify({"success": False, "error": "No resume info available"}), 404
+        log.info(f"[RESUME] ✓ Step 2: Resume info present")
 
         from app.services.sharepoint import SharePointMatchScoreUpdater
         from config import Config
 
         sp = SharePointMatchScoreUpdater()
 
-        # Step 1: Find the subfolder that starts with the job_id
+        # Step 3: Find the subfolder that starts with the job_id
         prefix = str(job_id) + "_"
+        log.info(f"[RESUME]   Listing folders in '{Config.SHAREPOINT_JOBS_FOLDER}' with prefix '{prefix}'")
         all_items = sp._list_folder_children(Config.SHAREPOINT_JOBS_FOLDER)
+        folder_names = [item["name"] for item in all_items if "folder" in item]
+        log.info(f"[RESUME]   Found {len(folder_names)} subfolders: {folder_names[:10]}")
         subfolders = [
             item
             for item in all_items
@@ -102,20 +119,41 @@ def api_ci_resume(candidate_id: int):
         ]
 
         if not subfolders:
-            return jsonify({"success": False, "error": f"No SharePoint folder found for job_id {job_id}"}), 404
+            log.warning(f"[RESUME] ✗ Step 3 FAILED: No folder starting with '{prefix}' in {Config.SHAREPOINT_JOBS_FOLDER}")
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"No SharePoint folder found for job_id {job_id}",
+                }
+            ), 404
 
         target_folder = subfolders[0]["name"]
         folder_path = f"{Config.SHAREPOINT_JOBS_FOLDER}/{target_folder}"
+        log.info(f"[RESUME] ✓ Step 3: Matched folder '{target_folder}'")
 
-        # Step 2: Find the file whose name matches resume_filename
+        # Step 4: Find the file whose name matches resume_filename
         files = sp._list_folder_children(folder_path)
+        file_names = [f["name"] for f in files if "file" in f]
+        log.info(f"[RESUME]   Found {len(file_names)} files in folder. Looking for '{resume_filename}'")
+        log.info(f"[RESUME]   Available files: {file_names[:15]}")
         target_file = next(
-            (f for f in files if "file" in f and f["name"].lower() == resume_filename.lower()),
-            None
+            (
+                f
+                for f in files
+                if "file" in f and f["name"].lower() == resume_filename.lower()
+            ),
+            None,
         )
 
         if not target_file:
-            return jsonify({"success": False, "error": f"Resume '{resume_filename}' not found in SharePoint folder '{target_folder}'"}), 404
+            log.warning(f"[RESUME] ✗ Step 4 FAILED: '{resume_filename}' not found in folder '{target_folder}'. Available: {file_names[:15]}")
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Resume '{resume_filename}' not found in SharePoint folder '{target_folder}'",
+                }
+            ), 404
+        log.info(f"[RESUME] ✓ Step 4: File matched — '{target_file['name']}' (id={target_file['id']})")
 
         # Step 3: Download and stream the file
         drive_id = sp._get_drive_id()
@@ -130,11 +168,14 @@ def api_ci_resume(candidate_id: int):
         # ── DOCX: convert to HTML via mammoth and serve inline ──────────────
         if fn_lower.endswith(".docx"):
             import mammoth, io
-            resp = sp.session.get(download_url, headers=headers, timeout=60, allow_redirects=True)
+
+            resp = sp.session.get(
+                download_url, headers=headers, timeout=60, allow_redirects=True
+            )
             resp.raise_for_status()
             result = mammoth.convert_to_html(io.BytesIO(resp.content))
             html_body = result.value
-            
+
             styled_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -174,7 +215,9 @@ def api_ci_resume(candidate_id: int):
             return Response(styled_html, content_type="text/html; charset=utf-8")
 
         # ── PDF: stream directly ──────────────
-        resp = sp.session.get(download_url, headers=headers, timeout=60, stream=True, allow_redirects=True)
+        resp = sp.session.get(
+            download_url, headers=headers, timeout=60, stream=True, allow_redirects=True
+        )
         resp.raise_for_status()
 
         if fn_lower.endswith(".pdf"):
