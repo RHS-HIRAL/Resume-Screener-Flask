@@ -2,6 +2,11 @@
 {% block title %}Candidate Information | Resume Screener{% endblock %}
 
 {% block content %}
+{# ── Inject server-side role info as JS constants ── #}
+<script>
+    const CAN_WRITE_SENSITIVE = {{ 'true' if user_can_write_sensitive else 'false' }};
+    const USER_ROLE = {{ user_role | tojson }};
+</script>
 <style>
     /* ── Page-level overrides ─────────────────────────────────────── */
     .ci-filter-bar {
@@ -471,6 +476,145 @@
         border-color: rgba(248, 113, 113, 0.35);
         color: var(--accent-rose);
     }
+
+    /* ── Locked / read-only sensitive field ─────────────────── */
+    .md-outlined-locked {
+        position: relative;
+        width: 100%;
+    }
+
+    .md-outlined-locked .lock-display {
+        border: 1px dashed var(--border-color);
+        border-radius: 6px;
+        padding: 0.65rem 2.4rem 0.65rem 0.8rem;
+        background: rgba(0,0,0,0.03);
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        min-height: 2.5rem;
+        word-break: break-word;
+        letter-spacing: 0.12em;
+        font-style: italic;
+    }
+
+    .md-outlined-locked .lock-icon {
+        position: absolute;
+        right: 0.7rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-secondary);
+        opacity: 0.45;
+        font-size: 0.8rem;
+        pointer-events: none;
+    }
+
+    /* ── HR restriction notice ──────────────────────────────── */
+    .hr-restriction-notice {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        background: rgba(251, 191, 36, 0.08);
+        border: 1px solid rgba(251, 191, 36, 0.25);
+        border-radius: 8px;
+        padding: 0.55rem 0.9rem;
+        font-size: 0.78rem;
+        color: #d97706;
+        margin: 0.6rem 1rem 0 1rem;
+    }
+
+    /* ── Quick-info banner ──────────────────────────────────── */
+    .ci-quick-info {
+        display: none;
+        align-items: center;
+        gap: 1.5rem;
+        padding: 0.75rem 1.2rem;
+        border-bottom: 1px solid var(--border-color);
+        background: rgba(6, 182, 212, 0.03);
+        flex-wrap: wrap;
+    }
+
+    .ci-quick-info .qi-chip {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.78rem;
+        color: var(--text-secondary);
+    }
+
+    .ci-quick-info .qi-chip strong {
+        color: var(--text-primary);
+        font-weight: 700;
+    }
+
+    .ci-quick-info .qi-score {
+        background: linear-gradient(135deg, #06b6d4, #22d3ee);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 1.1rem;
+        font-weight: 800;
+    }
+
+    /* ── Copy button ────────────────────────────────────────── */
+    .copy-btn {
+        position: absolute;
+        right: 0.4rem;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-secondary);
+        font-size: 0.78rem;
+        padding: 0.2rem 0.35rem;
+        border-radius: 4px;
+        transition: color 0.15s, background 0.15s;
+        z-index: 2;
+        opacity: 0;
+    }
+
+    .md-outlined-input:hover .copy-btn {
+        opacity: 1;
+    }
+
+    .copy-btn:hover {
+        color: var(--accent-indigo);
+        background: rgba(6,182,212,0.08);
+    }
+
+    .copy-btn.copied {
+        color: var(--accent-emerald);
+        opacity: 1;
+    }
+
+    /* ── Last-saved indicator ───────────────────────────────── */
+    #ci-last-saved {
+        font-size: 0.73rem;
+        color: var(--text-secondary);
+        text-align: right;
+        padding: 0 1rem 0.4rem 1rem;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    #ci-last-saved.visible {
+        opacity: 1;
+    }
+
+    /* ── Sticky action bar ──────────────────────────────────── */
+    .ci-action-bar {
+        display: none;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.6rem 1.2rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        position: sticky;
+        top: 0.5rem;
+        z-index: 20;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+    }
+
 </style>
 
 <!-- Toast -->
@@ -507,6 +651,30 @@
     </button>
 </div>
 
+<!-- Quick info banner (shown after candidate load) -->
+<div class="ci-quick-info" id="ci-quick-info">
+    <div class="qi-chip">
+        <i class="fa-solid fa-trophy" style="color:var(--accent-indigo);"></i>
+        <span>Score: <strong class="qi-score" id="qi-score">—</strong></span>
+    </div>
+    <div class="qi-chip"><i class="fa-solid fa-briefcase" style="color:var(--accent-emerald);"></i> <span>Exp: <strong id="qi-exp">—</strong></span></div>
+    <div class="qi-chip"><i class="fa-solid fa-building"></i> <span id="qi-company">—</span></div>
+    <div class="qi-chip"><i class="fa-solid fa-location-dot"></i> <span id="qi-loc">—</span></div>
+    <div class="qi-chip" style="margin-left:auto;">
+        <i class="fa-solid fa-clock" style="opacity:0.5;"></i>
+        <span id="qi-np">—</span>
+    </div>
+</div>
+
+<!-- Sticky Save Action Bar (outside both panels) -->
+<div class="ci-action-bar" id="ci-action-bar">
+    <button class="btn-save-hr" id="ci-save-btn" onclick="saveHR()" style="margin:0;">
+        <i class="fa-solid fa-floppy-disk"></i> Save Details
+    </button>
+    <div id="ci-last-saved" style="margin-left:0.5rem;"><i class="fa-regular fa-clock"></i> <span id="ci-last-saved-text"></span></div>
+    <div style="margin-left:auto; font-size:0.75rem; color:var(--text-secondary);" id="ci-action-candidate-name"></div>
+</div>
+
 <!-- Main grid: 60% left | 40% right sticky resume -->
 <div class="ci-grid" id="ci-main-grid">
 
@@ -535,6 +703,11 @@
             <div class="ci-card-head" onclick="toggleMainCard('ci-hr-card')">
                 <i class="fa-solid fa-clipboard-user" style="color: var(--accent-emerald);"></i>
                 <h3>HR Additional Details</h3>
+                {% if not user_can_write_sensitive %}
+                <span style="font-size:0.68rem;color:#d97706;margin-left:auto;margin-right:0.5rem;">
+                    <i class="fa-solid fa-lock" style="margin-right:0.2rem;"></i>Restricted fields visible to HR/Admin only
+                </span>
+                {% endif %}
                 <i class="fa-solid fa-chevron-down card-toggle-icon"></i>
             </div>
             <div class="ci-card-body-wrapper" id="ci-hr-wrapper">
@@ -557,6 +730,10 @@
             <div class="ci-card-head">
                 <i class="fa-solid fa-file-pdf" style="color: #e05252;"></i>
                 <h3>Candidate Resume</h3>
+                <button id="btn-open-resume" onclick="openResumeNewTab()" title="Open in new tab"
+                    style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--text-secondary);font-size:0.8rem;padding:0.2rem 0.5rem;border-radius:5px;transition:color 0.2s;">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </button>
             </div>
             <div class="ci-resume-iframe-wrap" id="ci-resume-wrap">
                 <div class="ci-resume-placeholder" id="ci-resume-placeholder">
@@ -694,6 +871,12 @@
         <p style="font-size:0.85rem;">HR fields will appear after selecting a candidate.</p></div>`;
         document.getElementById('ci-role-badge').style.display = 'none';
         document.getElementById('ci-meta-chip').style.display = 'none';
+        // Hide quick-info
+        const qi = document.getElementById('ci-quick-info');
+        if (qi) qi.style.display = 'none';
+        // Hide action bar
+        const ab = document.getElementById('ci-action-bar');
+        if (ab) ab.style.display = 'none';
         // Reset resume panel
         const wrap = document.getElementById('ci-resume-wrap');
         wrap.innerHTML = `<div class="ci-resume-placeholder" id="ci-resume-placeholder">
@@ -720,6 +903,7 @@
     }
 
     // ── Load Resume ────────────────────────────────────────────────────────────
+    let _currentResumeUrl = null;
     function loadResume(candidateId) {
         const wrap = document.getElementById('ci-resume-wrap');
         wrap.innerHTML = `<div class="ci-resume-placeholder">
@@ -728,12 +912,14 @@
     </div>`;
 
         const url = `/api/candidate-info/${candidateId}/resume`;
+        _currentResumeUrl = url;
         // Probe the endpoint first to catch any errors before embedding
         fetch(url, { method: 'HEAD' })
             .then(r => {
                 if (r.ok) {
                     wrap.innerHTML = `<iframe src="${url}" title="Candidate Resume"></iframe>`;
                 } else {
+                    _currentResumeUrl = null;
                     wrap.innerHTML = `<div class="ci-resume-placeholder">
                     <i class="fa-solid fa-file-circle-xmark" style="color:var(--accent-rose);opacity:0.6;"></i>
                     <p style="color:var(--accent-rose);">Resume not found in SharePoint.<br><small style="opacity:0.7;">File may have been moved or renamed.</small></p>
@@ -741,11 +927,16 @@
                 }
             })
             .catch(() => {
+                _currentResumeUrl = null;
                 wrap.innerHTML = `<div class="ci-resume-placeholder">
                 <i class="fa-solid fa-wifi-slash" style="opacity:0.5;"></i>
                 <p>Could not load resume. Check connection.</p>
             </div>`;
             });
+    }
+
+    function openResumeNewTab() {
+        if (_currentResumeUrl) window.open(_currentResumeUrl, '_blank');
     }
 
     // ── Render profile ─────────────────────────────────────────────────────────
@@ -758,6 +949,18 @@
         // Meta chip in filter bar
         document.getElementById('ci-meta-chip').style.display = 'flex';
 
+        // ── Quick-info strip ─────────────────────────────────────────────────────
+        const qi = document.getElementById('ci-quick-info');
+        if (qi) {
+            qi.style.display = 'flex';
+            document.getElementById('qi-score').textContent = p.match_score != null ? p.match_score + '%' : '—';
+            const exp = p.total_experience != null ? p.total_experience + ' yrs' : '—';
+            document.getElementById('qi-exp').textContent = exp;
+            document.getElementById('qi-company').textContent = p.current_company || p.current_title || '—';
+            document.getElementById('qi-loc').textContent = p.current_location || '—';
+            document.getElementById('qi-np').textContent = p.notice_period ? 'NP: ' + p.notice_period : '';
+        }
+
         // ── Candidate Details Accordion ──────────────────────────────────────────
         const staticVal = v => v !== null && v !== undefined && v !== '' ? escHtml(v) : '<span style="color:var(--text-secondary);font-style:italic;">—</span>';
 
@@ -766,14 +969,25 @@
             return `<textarea id="edit_${key}" rows="1" placeholder="${placeholder}" oninput="autoResize(this)" onfocus="autoResize(this)">${safeVal}</textarea>`;
         };
 
+        // Copy button helper
+        const copyBtn = (targetId) =>
+            `<button class="copy-btn" title="Copy" onclick="copyField('${targetId}', this)"><i class="fa-regular fa-copy"></i></button>`;
+
+        // Static val with copy button
+        const staticCopyVal = (id, v) => {
+            const display = v !== null && v !== undefined && v !== '' ? escHtml(v) : '<span style="color:var(--text-secondary);font-style:italic;">—</span>';
+            const canCopy = v !== null && v !== undefined && v !== '';
+            return display + (canCopy ? copyBtn(id) : '');
+        };
+
         const arrayStr = arr => Array.isArray(arr) ? arr.filter(Boolean).join(', ') : '';
 
         const rows = [
             { section: '📋 Position & Identity' },
             { label: 'Position Applied', value: staticVal(p.position_applied), isStatic: true },
             { label: 'Candidate Name', value: inputVal('full_name', p.full_name) },
-            { label: 'Contact No.', value: inputVal('phone', p.phone) },
-            { label: 'Email ID', value: inputVal('email', p.email) },
+            { label: 'Contact No.', value: inputVal('phone', p.phone), extraHtml: p.phone ? copyBtn('edit_phone') : '' },
+            { label: 'Email ID', value: inputVal('email', p.email), extraHtml: p.email ? copyBtn('edit_email') : '' },
             { section: '🎓 Background' },
             { label: 'Education (comma separated)', value: inputVal('education', arrayStr(p.education), "e.g. B.Tech, MBA") },
             { label: 'Current Organisation', value: inputVal('current_company', p.current_company) },
@@ -800,19 +1014,94 @@
                     currentSection = true;
                     html += `
                 <div class="accordion-section">
-                    <div class="accordion-header" onclick="toggleSection(this)">
+                    <div class="accordion-header expanded" onclick="toggleSection(this)">
                         <span>${r.section}</span>
                         <i class="fa-solid fa-chevron-down"></i>
                     </div>
-                    <div class="accordion-content-wrapper">
+                    <div class="accordion-content-wrapper expanded">
                         <div class="accordion-content">
                             <div class="accordion-inner">
                                 <div class="field-grid">
                 `;
                 } else {
                     const wrapperClass = r.isStatic ? 'md-outlined-static' : 'md-outlined-input';
+                    const extra = r.extraHtml || '';
                     html += `
                     <div class="${wrapperClass}">
+                        <label class="md-outlined-label">${r.label}</label>
+                        ${r.value}${extra}
+                    </div>
+                `;
+                }
+            });
+            if (currentSection) html += `</div></div></div></div></div>`;
+            html += '</div>';
+            return html;
+        };
+
+        // ── Sensitive field helpers (locked for non-HR roles) ─────────────────────
+        const SENSITIVE_KEYS = ['offer_in_hand', 'current_ctc', 'expected_ctc', 'ta_hr_comments'];
+
+        const hrInputVal = (key, v, placeholder = "") => {
+            if (!CAN_WRITE_SENSITIVE && SENSITIVE_KEYS.includes(key)) {
+                // Render a locked, read-only placeholder
+                return `<div class="lock-display">••••</div><i class="fa-solid fa-lock lock-icon"></i>`;
+            }
+            const safeVal = (v !== null && v !== undefined) ? escHtml(v) : '';
+            return `<textarea id="hr_${key}" rows="1" placeholder="${placeholder}" oninput="autoResize(this)" onfocus="autoResize(this)">${safeVal}</textarea>`;
+        };
+        const hrTextareaVal = (key, v, placeholder = "") => {
+            if (!CAN_WRITE_SENSITIVE && SENSITIVE_KEYS.includes(key)) {
+                return `<div class="lock-display">••••</div><i class="fa-solid fa-lock lock-icon"></i>`;
+            }
+            const safeVal = (v !== null && v !== undefined) ? escHtml(v) : '';
+            return `<textarea id="hr_${key}" rows="2" placeholder="${placeholder}" oninput="autoResize(this)" onfocus="autoResize(this)">${safeVal}</textarea>`;
+        };
+
+        // Wrapper class: locked fields get a different wrapper
+        const hrWrapClass = (key) => SENSITIVE_KEYS.includes(key) && !CAN_WRITE_SENSITIVE
+            ? 'md-outlined-locked' : 'md-outlined-input';
+
+        const hrRows = [
+            { section: '👤 TA & Source Info' },
+            { label: 'TA SPOC', key: 'ta_spoc', value: hrInputVal('ta_spoc', p.ta_spoc, 'Name of TA assigning this candidate') },
+            { label: 'Name of Source', key: 'name_of_source', value: hrInputVal('name_of_source', p.name_of_source, 'Referral name / job portal source') },
+            { section: '📍 Personal Details' },
+            { label: 'Native Location', key: 'native_location', value: hrInputVal('native_location', p.native_location, 'Hometown / native city') },
+            { label: 'Offer in Hand 🔒', key: 'offer_in_hand', value: hrInputVal('offer_in_hand', p.offer_in_hand, 'e.g. Yes – ₹8 LPA from XYZ') },
+            { label: 'Shift Flexibility', key: 'shift_flexibility', value: hrInputVal('shift_flexibility', p.shift_flexibility, 'e.g. Flexible / Day only / Night ok') },
+            { label: 'Date of Joining', key: 'doj', value: hrInputVal('doj', p.doj, 'e.g. 2025-08-01 or ASAP') },
+            { label: 'Current CTC 🔒', key: 'current_ctc', value: hrInputVal('current_ctc', p.current_ctc, 'e.g. 12 LPA') },
+            { label: 'Exp. CTC 🔒', key: 'expected_ctc', value: hrInputVal('expected_ctc', p.expected_ctc, 'e.g. 15 LPA') },
+            { section: '📝 Notes' },
+            { label: 'Reason for Change', key: 'reason_for_change', value: hrTextareaVal('reason_for_change', p.reason_for_change, 'Why is the candidate looking for a change?') },
+            { label: 'TA / HR Comments 🔒', key: 'ta_hr_comments', value: hrTextareaVal('ta_hr_comments', p.ta_hr_comments, 'Any internal notes or observations…') },
+            { label: 'Offer Details', key: 'offer_details', value: hrTextareaVal('offer_details', p.offer_details, 'CTC, designation, perks, etc.') },
+        ];
+
+        // Build HR accordion with locked-aware wrapper
+        const buildHRAccordion = (rowData) => {
+            let html = '<div style="padding: 1rem;">';
+            let currentSection = false;
+            rowData.forEach(r => {
+                if (r.section) {
+                    if (currentSection) html += `</div></div></div></div></div>`;
+                    currentSection = true;
+                    html += `
+                <div class="accordion-section">
+                    <div class="accordion-header expanded" onclick="toggleSection(this)">
+                        <span>${r.section}</span>
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </div>
+                    <div class="accordion-content-wrapper expanded">
+                        <div class="accordion-content">
+                            <div class="accordion-inner">
+                                <div class="field-grid">
+                `;
+                } else {
+                    const wc = hrWrapClass(r.key || '');
+                    html += `
+                    <div class="${wc}">
                         <label class="md-outlined-label">${r.label}</label>
                         ${r.value}
                     </div>
@@ -824,41 +1113,19 @@
             return html;
         };
 
+        const restrictionBanner = !CAN_WRITE_SENSITIVE
+            ? `<div class="hr-restriction-notice"><i class="fa-solid fa-triangle-exclamation"></i> CTC, offer &amp; comments fields are restricted to <strong>HR / Admin</strong> only.</div>`
+            : '';
+
         document.getElementById('ci-details-body').innerHTML = buildAccordion(rows);
+        document.getElementById('ci-hr-body').innerHTML = restrictionBanner + buildHRAccordion(hrRows);
 
-        // ── HR Accordion ─────────────────────────────────────────────────────────
-        const hrInputVal = (key, v, placeholder = "") => {
-            const safeVal = (v !== null && v !== undefined) ? escHtml(v) : '';
-            return `<textarea id="hr_${key}" rows="1" placeholder="${placeholder}" oninput="autoResize(this)" onfocus="autoResize(this)">${safeVal}</textarea>`;
-        };
-        const hrTextareaVal = (key, v, placeholder = "") => {
-            const safeVal = (v !== null && v !== undefined) ? escHtml(v) : '';
-            return `<textarea id="hr_${key}" rows="2" placeholder="${placeholder}" oninput="autoResize(this)" onfocus="autoResize(this)">${safeVal}</textarea>`;
-        };
-
-        const hrRows = [
-            { section: '👤 TA & Source Info' },
-            { label: 'TA SPOC', value: hrInputVal('ta_spoc', p.ta_spoc, 'Name of TA assigning this candidate') },
-            { label: 'Name of Source', value: hrInputVal('name_of_source', p.name_of_source, 'Referral name / job portal source') },
-            { section: '📍 Personal Details' },
-            { label: 'Native Location', value: hrInputVal('native_location', p.native_location, 'Hometown / native city') },
-            { label: 'Offer in Hand', value: hrInputVal('offer_in_hand', p.offer_in_hand, 'e.g. Yes – ₹8 LPA from XYZ') },
-            { label: 'Shift Flexibility', value: hrInputVal('shift_flexibility', p.shift_flexibility, 'e.g. Flexible / Day only / Night ok') },
-            { label: 'Date of Joining', value: hrInputVal('doj', p.doj, 'e.g. 2025-08-01 or ASAP') },
-            { label: 'Current CTC', value: hrInputVal('current_ctc', p.current_ctc, 'e.g. 12 LPA') },
-            { label: 'Exp. CTC', value: hrInputVal('expected_ctc', p.expected_ctc, 'e.g. 15 LPA') },
-            { section: '📝 Notes' },
-            { label: 'Reason for Change', value: hrTextareaVal('reason_for_change', p.reason_for_change, 'Why is the candidate looking for a change?') },
-            { label: 'TA / HR Comments', value: hrTextareaVal('ta_hr_comments', p.ta_hr_comments, 'Any internal notes or observations…') },
-            { label: 'Offer Details', value: hrTextareaVal('offer_details', p.offer_details, 'CTC, designation, perks, etc.') },
-        ];
-
-        document.getElementById('ci-hr-body').innerHTML = buildAccordion(hrRows) + `
-        <div style="padding: 0 1rem 1rem 1rem;">
-            <button class="btn-save-hr" id="ci-save-btn" onclick="saveHR()">
-                <i class="fa-solid fa-floppy-disk"></i> Save Details
-            </button>
-        </div>`;
+        // Show the sticky action bar and set candidate name
+        const actionBar = document.getElementById('ci-action-bar');
+        if (actionBar) {
+            actionBar.style.display = 'flex';
+            document.getElementById('ci-action-candidate-name').textContent = p.full_name || '';
+        }
 
         // Trigger auto-resize on load
         setTimeout(() => {
@@ -897,7 +1164,8 @@
         const payload = {};
         keys.forEach(k => {
             const el = document.getElementById(`hr_${k}`);
-            payload[k] = el ? el.value.trim() : '';
+            // Skip locked fields (textarea won't exist for non-HR roles)
+            if (el) payload[k] = el.value.trim();
         });
 
         const editKeys = ['full_name', 'phone', 'email', 'current_company', 'current_title',
@@ -920,6 +1188,14 @@
             const data = await res.json();
             if (data.success) {
                 showToast('Candidate Details saved successfully!', false);
+                // Show last-saved indicator
+                const lsEl = document.getElementById('ci-last-saved');
+                const lsText = document.getElementById('ci-last-saved-text');
+                if (lsEl && lsText) {
+                    const now = new Date();
+                    lsText.textContent = `Last saved at ${now.toLocaleTimeString()}`;
+                    lsEl.classList.add('visible');
+                }
             } else {
                 showToast('Save failed: ' + (data.error || 'Unknown error'), true);
             }
@@ -952,6 +1228,21 @@
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
+    }
+
+    // ── Copy field to clipboard ────────────────────────────────────────────────
+    function copyField(elementId, btn) {
+        const el = document.getElementById(elementId);
+        const text = el ? el.value.trim() : '';
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+            btn.innerHTML = '<i class="fa-solid fa-check"></i>';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fa-regular fa-copy"></i>';
+                btn.classList.remove('copied');
+            }, 1500);
+        }).catch(() => {});
     }
 
     // ── Resizer Logic ──────────────────────────────────────────────────────────
@@ -1017,15 +1308,17 @@
 
     // ── Collapsible Main Cards ─────────────────────────────────────────────────
     function initCards() {
+        // Default: both cards expanded. Only apply collapsed state if user explicitly collapsed them.
         try {
-            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY_CARDS) || '{"ci-details-card": true, "ci-hr-card": true}');
+            const saved = JSON.parse(localStorage.getItem(STORAGE_KEY_CARDS) || '{}');
             ['ci-details-card', 'ci-hr-card'].forEach(id => {
-                const isCollapsed = saved[id];
-                const head = document.querySelector(`#${id} .ci-card-head`);
-                const wrapper = document.getElementById(id.replace('-card', '-wrapper'));
-                if (isCollapsed) {
-                    head.classList.add('collapsed');
-                    wrapper.classList.add('collapsed');
+                if (saved[id] === true) {
+                    const head = document.querySelector(`#${id} .ci-card-head`);
+                    const wrapper = document.getElementById(id.replace('-card', '-wrapper'));
+                    if (head && wrapper) {
+                        head.classList.add('collapsed');
+                        wrapper.classList.add('collapsed');
+                    }
                 }
             });
         } catch (e) { }

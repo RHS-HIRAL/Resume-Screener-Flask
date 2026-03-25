@@ -35,6 +35,11 @@ bs4
 # ── Pydantic (schema validation) ──────────────────────────────────────────────
 pydantic[email]>=2.0.0
 
+# ── OCR / Image processing ────────────────────────────────────────────────────
+pytesseract>=0.3.10          # Tesseract OCR wrapper
+pymupdf>=1.23.0              # PDF parsing (imported as fitz)
+Pillow>=10.0.0               # Image processing for OCR
+
 # ── Security ──────────────────────────────────────────────────────────────────
 Werkzeug>=3.0.0
 

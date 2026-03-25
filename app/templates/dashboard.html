@@ -90,22 +90,47 @@
     </p>
 </div>
 
+<!-- ── Primary Stats ─────────────────────────────────────────── -->
 <div class="dashboard-grid">
     <div class="card stat-card">
         <span class="stat-label">Total Screened</span>
-        <span class="stat-value">{{ stats.total_screened }}</span>
+        <span class="stat-value">{{ stats.total_screened or 0 }}</span>
     </div>
     <div class="card stat-card">
         <span class="stat-label">Average Match</span>
-        <span class="stat-value" style="color: var(--accent-emerald);">{{ stats.avg_score }}%</span>
+        <span class="stat-value" style="color: var(--accent-emerald);">{{ stats.avg_score or 0 }}%</span>
+    </div>
+    <div class="card stat-card">
+        <span class="stat-label">Top Score</span>
+        <span class="stat-value" style="color: var(--accent-indigo);">{{ stats.top_score or 0 }}%</span>
     </div>
     <div class="card stat-card">
         <span class="stat-label">Outreach Sent</span>
-        <span class="stat-value" style="color: var(--accent-indigo);">{{ stats.outreach_sent }}</span>
+        <span class="stat-value" style="color: var(--accent-amber);">{{ stats.outreach_sent or 0 }}</span>
     </div>
-    <div class="card stat-card">
-        <span class="stat-label">Pending</span>
-        <span class="stat-value" style="color: var(--accent-amber);">{{ stats.pending_outreach }}</span>
+</div>
+
+<!-- ── Pipeline Breakdown ────────────────────────────────────── -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-top: 1rem;">
+    <div class="card" style="padding: 1rem 1.2rem; text-align: center; border-top: 3px solid #22d3ee;">
+        <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); margin-bottom: 0.3rem;">Shortlisted</div>
+        <div style="font-size: 1.8rem; font-weight: 800; color: #06b6d4;">{{ stats.shortlisted or 0 }}</div>
+    </div>
+    <div class="card" style="padding: 1rem 1.2rem; text-align: center; border-top: 3px solid #10b981;">
+        <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); margin-bottom: 0.3rem;">Selected</div>
+        <div style="font-size: 1.8rem; font-weight: 800; color: #059669;">{{ stats.selected or 0 }}</div>
+    </div>
+    <div class="card" style="padding: 1rem 1.2rem; text-align: center; border-top: 3px solid #f87171;">
+        <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); margin-bottom: 0.3rem;">Rejected</div>
+        <div style="font-size: 1.8rem; font-weight: 800; color: #dc2626;">{{ stats.rejected or 0 }}</div>
+    </div>
+    <div class="card" style="padding: 1rem 1.2rem; text-align: center; border-top: 3px solid #a78bfa;">
+        <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); margin-bottom: 0.3rem;">Call Evaluated</div>
+        <div style="font-size: 1.8rem; font-weight: 800; color: #7c3aed;">{{ stats.call_evaluated or 0 }}</div>
+    </div>
+    <div class="card" style="padding: 1rem 1.2rem; text-align: center; border-top: 3px solid #fb923c;">
+        <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); margin-bottom: 0.3rem;">Pending Outreach</div>
+        <div style="font-size: 1.8rem; font-weight: 800; color: #ea580c;">{{ stats.pending_outreach or 0 }}</div>
     </div>
 </div>
 
@@ -165,45 +190,88 @@
     }
 </script>
 
+<!-- ── By-Role Breakdown ─────────────────────────────────────── -->
+{% if stats.roles_breakdown %}
+<div class="card" style="padding: 0; overflow: hidden; margin-top: 1.5rem;">
+    <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-color);">
+        <h2 style="font-size: 1.25rem;">Candidates by Role</h2>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">Screening distribution and performance across active roles.</p>
+    </div>
+    <div style="overflow-x: auto; max-height: 320px; overflow-y: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+            <thead style="position: sticky; top: 0; z-index: 1;">
+                <tr style="background: var(--card-bg); color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">
+                    <th style="padding: 0.55rem 1rem;">Role</th>
+                    <th style="padding: 0.55rem 1rem; text-align: center;">Candidates</th>
+                    <th style="padding: 0.55rem 1rem; text-align: center;">Avg Score</th>
+                    <th style="padding: 0.55rem 1rem; text-align: center;">Selected</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rb in stats.roles_breakdown %}
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.55rem 1rem; font-weight: 600; font-size: 0.88rem;">
+                        {{ rb.role_name | replace('_', ' ') | title }}
+                    </td>
+                    <td style="padding: 0.55rem 1rem; text-align: center;">
+                        <span style="background: rgba(6,182,212,0.08); color: var(--accent-indigo); padding: 0.15rem 0.5rem; border-radius: 12px; font-weight: 700; font-size: 0.8rem;">{{ rb.cnt }}</span>
+                    </td>
+                    <td style="padding: 0.55rem 1rem; text-align: center;">
+                        <span style="font-weight: 700; font-size: 0.88rem; color: {% if rb.avg_score and rb.avg_score >= 70 %}var(--accent-emerald){% elif rb.avg_score and rb.avg_score >= 45 %}var(--accent-amber){% else %}var(--accent-rose){% endif %};">
+                            {{ rb.avg_score or 0 }}%
+                        </span>
+                    </td>
+                    <td style="padding: 0.55rem 1rem; text-align: center;">
+                        {% if rb.selected %}
+                        <span style="background:rgba(16,185,129,0.1); color:#059669; padding:0.15rem 0.5rem; border-radius:12px; font-weight:700; font-size:0.8rem;">{{ rb.selected }}</span>
+                        {% else %}
+                        <span style="color: var(--text-secondary); font-size: 0.8rem;">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 
-
-<div class="card" style="padding: 0; overflow: hidden;">
+<!-- ── Top Candidates ─────────────────────────────────────────── -->
+<div class="card" style="padding: 0; overflow: hidden; margin-top: 1.5rem;">
     <div
         style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
         <h2 style="font-size: 1.25rem;">Top Candidates</h2>
     </div>
-    <div class="table-scroll-x table-scroll-y" style="overflow-x: auto;">
+    <div class="table-scroll-x" style="overflow-x: auto; max-height: 360px; overflow-y: auto;">
         <table style="width: 100%; border-collapse: collapse; text-align: left;">
-            <thead>
-                <tr
-                    style="background: rgba(255,255,255,0.02); color: var(--text-secondary); font-size: 0.8rem; text-transform: uppercase;">
-                    <th style="padding: 1rem 1.5rem;">ID</th>
-                    <th style="padding: 1rem 1.5rem;">Candidate</th>
-                    <th style="padding: 1rem 1.5rem;">Role</th>
-                    <th style="padding: 1rem 1.5rem;">Score</th>
-                    <th style="padding: 1rem 1.5rem;">QA Score</th>
+            <thead style="position: sticky; top: 0; z-index: 1;">
+                <tr style="background: var(--card-bg); color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">
+                    <th style="padding: 0.55rem 1rem;">ID</th>
+                    <th style="padding: 0.55rem 1rem;">Candidate</th>
+                    <th style="padding: 0.55rem 1rem;">Role</th>
+                    <th style="padding: 0.55rem 1rem;">Score</th>
+                    <th style="padding: 0.55rem 1rem;">QA Score</th>
                 </tr>
             </thead>
             <tbody>
                 {% for c in recent_candidates %}
                 <tr style="border-bottom: 1px solid var(--border-color);">
-                    <td
-                        style="padding: 1rem 1.5rem; font-family: monospace; font-weight: 600; color: var(--accent-indigo);">
+                    <td style="padding: 0.55rem 1rem; font-family: monospace; font-weight: 600; font-size: 0.82rem; color: var(--accent-indigo);">
                         {{ c.candidate_id }}</td>
-                    <td style="padding: 1rem 1.5rem;">
-                        <div style="font-weight: 600;">{{ c.full_name }}</div>
-                        <div style="font-size: 0.8rem; color: var(--text-secondary);">{{ c.email }}</div>
+                    <td style="padding: 0.55rem 1rem;">
+                        <div style="font-weight: 600; font-size: 0.88rem;">{{ c.full_name }}</div>
+                        <div style="font-size: 0.74rem; color: var(--text-secondary);">{{ c.email }}</div>
                     </td>
-                    <td style="padding: 1rem 1.5rem; font-size: 0.9rem;">{{ c.role_name }}</td>
-                    <td style="padding: 1rem 1.5rem;">
+                    <td style="padding: 0.55rem 1rem; font-size: 0.85rem;">{{ c.role_name }}</td>
+                    <td style="padding: 0.55rem 1rem;">
                         <span
-                            style="font-weight: 700; color: {% if c.match_score >= 75 %}var(--accent-emerald){% elif c.match_score >= 50 %}var(--accent-amber){% else %}var(--accent-rose){% endif %};">
+                            style="font-weight: 700; font-size: 0.88rem; color: {% if c.match_score >= 75 %}var(--accent-emerald){% elif c.match_score >= 50 %}var(--accent-amber){% else %}var(--accent-rose){% endif %};">
                             {{ c.match_score }}%
                         </span>
                     </td>
-                    <td style="padding: 1rem 1.5rem;">
+                    <td style="padding: 0.55rem 1rem;">
                         {% if c.qa_score is not none %}
-                        <span style="font-weight: 700; color: #10b981;">{{ c.qa_score }}%</span>
+                        <span style="font-weight: 700; font-size: 0.88rem; color: #10b981;">{{ c.qa_score }}%</span>
                         {% else %}
                         <span style="color: var(--text-secondary); font-size: 0.8rem;">--</span>
                         {% endif %}
@@ -211,7 +279,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="5" style="padding: 3rem; text-align: center; color: var(--text-secondary);">
+                    <td colspan="5" style="padding: 2rem; text-align: center; color: var(--text-secondary);">
                         No candidates screened yet. <a href="{{ url_for('views.screener') }}"
                             style="color: var(--accent-indigo);">Start screening</a>.
                     </td>

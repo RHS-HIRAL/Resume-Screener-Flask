@@ -311,11 +311,40 @@ def get_stats() -> dict:
         sent = cur.fetchone()["cnt"]
         cur.execute("SELECT AVG(match_score) AS avg FROM candidates")
         avg_sc = cur.fetchone()["avg"] or 0
+        cur.execute("SELECT COUNT(*) AS cnt FROM candidates WHERE selection_status = 'Selected'")
+        selected = cur.fetchone()["cnt"]
+        cur.execute("SELECT COUNT(*) AS cnt FROM candidates WHERE selection_status = 'Rejected'")
+        rejected = cur.fetchone()["cnt"]
+        cur.execute("SELECT COUNT(*) AS cnt FROM candidates WHERE selection_status = 'Shortlisted'")
+        shortlisted = cur.fetchone()["cnt"]
+        cur.execute("SELECT COUNT(*) AS cnt FROM candidates WHERE qa_score IS NOT NULL")
+        call_evaluated = cur.fetchone()["cnt"]
+        cur.execute("SELECT MAX(match_score) AS top FROM candidates")
+        top_score = cur.fetchone()["top"] or 0
+
+        # By-role breakdown
+        cur.execute("""
+            SELECT j.role_name, COUNT(*) AS cnt,
+                   ROUND(AVG(c.match_score), 1) AS avg_score,
+                   SUM(CASE WHEN c.selection_status = 'Selected' THEN 1 ELSE 0 END) AS selected
+            FROM candidates c
+            JOIN jobs j ON c.job_id = j.id
+            GROUP BY j.role_name
+            ORDER BY cnt DESC
+        """)
+        roles_breakdown = [dict(r) for r in cur.fetchall()]
+
         return {
             "total_screened": total,
             "outreach_sent": sent,
             "pending_outreach": total - sent,
             "avg_score": round(float(avg_sc), 1),
+            "selected": selected,
+            "rejected": rejected,
+            "shortlisted": shortlisted,
+            "call_evaluated": call_evaluated,
+            "top_score": top_score,
+            "roles_breakdown": roles_breakdown,
         }
 
 
@@ -505,6 +534,8 @@ def get_candidate_full_profile(
         "job_id": data.get("job_id"),
         "resume_filename": data.get("resume_filename", ""),
         "candidate_id": data.get("candidate_id", ""),
+        "match_score": data.get("match_score"),
+        "selection_status": data.get("selection_status", ""),
         "position_applied": _format_role_display(data.get("role_name", "")),
         "full_name": data.get("full_name", ""),
         "phone": data.get("phone", ""),

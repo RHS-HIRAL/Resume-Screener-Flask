@@ -5,10 +5,10 @@ from pathlib import Path
 
 
 def extract_job_code(folder_or_role_name: str) -> int:
-    m = re.match(r"(\d{4})", folder_or_role_name)
+    m = re.match(r"(\d{4,5})", folder_or_role_name)
     if m:
         return int(m.group(1))
-    raise ValueError(f"Cannot extract 4-digit job code from '{folder_or_role_name}'")
+    raise ValueError(f"Cannot extract job code from '{folder_or_role_name}'")
 
 
 def normalize_slug(name: str) -> str:

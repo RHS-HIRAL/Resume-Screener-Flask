@@ -80,25 +80,38 @@ def api_ci_resume(candidate_id: int):
          matches resume_filename (case-insensitive).
       4. Download and stream the bytes inline so the browser can render it.
     """
+    import logging
+    log = logging.getLogger(__name__)
+    log.info(f"[RESUME] ── Step 0: Request received for candidate_id={candidate_id}")
+
     try:
         profile = get_candidate_full_profile(candidate_id)
         if not profile:
+            log.warning(f"[RESUME] ✗ Step 1 FAILED: No profile found for candidate_id={candidate_id}")
             return jsonify({"success": False, "error": "Candidate not found"}), 404
+        log.info(f"[RESUME] ✓ Step 1: Profile loaded — full_name={profile.get('full_name')}")
 
         job_id = profile.get("job_id")
         resume_filename = profile.get("resume_filename", "").strip()
 
+        log.info(f"[RESUME]   job_id={job_id}, resume_filename='{resume_filename}'")
+
         if not job_id or not resume_filename:
+            log.warning(f"[RESUME] ✗ Step 2 FAILED: Missing resume info — job_id={job_id}, resume_filename='{resume_filename}'")
             return jsonify({"success": False, "error": "No resume info available"}), 404
+        log.info(f"[RESUME] ✓ Step 2: Resume info present")
 
         from app.services.sharepoint import SharePointMatchScoreUpdater
         from config import Config
 
         sp = SharePointMatchScoreUpdater()
 
-        # Step 1: Find the subfolder that starts with the job_id
+        # Step 3: Find the subfolder that starts with the job_id
         prefix = str(job_id) + "_"
+        log.info(f"[RESUME]   Listing folders in '{Config.SHAREPOINT_JOBS_FOLDER}' with prefix '{prefix}'")
         all_items = sp._list_folder_children(Config.SHAREPOINT_JOBS_FOLDER)
+        folder_names = [item["name"] for item in all_items if "folder" in item]
+        log.info(f"[RESUME]   Found {len(folder_names)} subfolders: {folder_names[:10]}")
         subfolders = [
             item
             for item in all_items
@@ -106,6 +119,7 @@ def api_ci_resume(candidate_id: int):
         ]
 
         if not subfolders:
+            log.warning(f"[RESUME] ✗ Step 3 FAILED: No folder starting with '{prefix}' in {Config.SHAREPOINT_JOBS_FOLDER}")
             return jsonify(
                 {
                     "success": False,
@@ -115,9 +129,13 @@ def api_ci_resume(candidate_id: int):
 
         target_folder = subfolders[0]["name"]
         folder_path = f"{Config.SHAREPOINT_JOBS_FOLDER}/{target_folder}"
+        log.info(f"[RESUME] ✓ Step 3: Matched folder '{target_folder}'")
 
-        # Step 2: Find the file whose name matches resume_filename
+        # Step 4: Find the file whose name matches resume_filename
         files = sp._list_folder_children(folder_path)
+        file_names = [f["name"] for f in files if "file" in f]
+        log.info(f"[RESUME]   Found {len(file_names)} files in folder. Looking for '{resume_filename}'")
+        log.info(f"[RESUME]   Available files: {file_names[:15]}")
         target_file = next(
             (
                 f
@@ -128,12 +146,14 @@ def api_ci_resume(candidate_id: int):
         )
 
         if not target_file:
+            log.warning(f"[RESUME] ✗ Step 4 FAILED: '{resume_filename}' not found in folder '{target_folder}'. Available: {file_names[:15]}")
             return jsonify(
                 {
                     "success": False,
                     "error": f"Resume '{resume_filename}' not found in SharePoint folder '{target_folder}'",
                 }
             ), 404
+        log.info(f"[RESUME] ✓ Step 4: File matched — '{target_file['name']}' (id={target_file['id']})")
 
         # Step 3: Download and stream the file
         drive_id = sp._get_drive_id()
