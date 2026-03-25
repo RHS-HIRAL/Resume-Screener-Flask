@@ -21,7 +21,12 @@ def login():
 
         user_data = verify_user(username, password)
         if user_data:
-            user = User(user_data["id"], user_data["username"], user_data["is_admin"])
+            user = User(
+                user_data["id"],
+                user_data["username"],
+                user_data["is_admin"],
+                role=user_data.get("role", "recruiter"),
+            )
             login_user(user)
 
             # Intelligent redirect: Send user back to the page they originally requested
@@ -29,7 +34,6 @@ def login():
             if next_page and next_page.startswith("/"):
                 return redirect(next_page)
 
-            # Fallback to the main dashboard (assuming it will be in the 'views' blueprint)
             return redirect(url_for("views.dashboard"))
 
         flash("Invalid username or password", "danger")
@@ -52,7 +56,9 @@ def register():
             flash("Passwords do not match", "danger")
             return redirect(url_for("auth.register"))
 
-        success, msg = create_user(username, password)
+        # Self-registered users get 'recruiter' role by default.
+        # An admin must elevate their role via the user management panel.
+        success, msg = create_user(username, password, is_admin=0, role="recruiter")
         if success:
             flash("Registration successful! Please login.", "success")
             return redirect(url_for("auth.login"))

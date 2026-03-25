@@ -1,3 +1,5 @@
+# app/db/qa_results.py — Call QA pipeline storage and retrieval.
+
 from psycopg2.extras import Json
 from app.db.connection import get_cursor
 
@@ -115,14 +117,17 @@ def get_latest_evaluation_for_candidate(candidate_fk: int) -> dict | None:
     including full score_text, conversation_text, and token_meta.
     """
     with get_cursor() as cur:
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, candidate_fk, audio_filename, conversation_text,
                    score_text, token_meta, call_eval_decision, created_at
             FROM call_qa_results
             WHERE candidate_fk = %s
             ORDER BY created_at DESC
             LIMIT 1
-        """, (candidate_fk,))
+        """,
+            (candidate_fk,),
+        )
         row = cur.fetchone()
         return dict(row) if row else None
 
@@ -130,7 +135,8 @@ def get_latest_evaluation_for_candidate(candidate_fk: int) -> dict | None:
 def update_call_eval_decision(candidate_fk: int, decision: str) -> bool:
     """Update the call_eval_decision on the latest QA result for audit."""
     with get_cursor(commit=True) as cur:
-        cur.execute("""
+        cur.execute(
+            """
             UPDATE call_qa_results
             SET call_eval_decision = %s
             WHERE id = (
@@ -139,5 +145,7 @@ def update_call_eval_decision(candidate_fk: int, decision: str) -> bool:
                 ORDER BY created_at DESC
                 LIMIT 1
             )
-        """, (decision, candidate_fk))
+        """,
+            (decision, candidate_fk),
+        )
         return cur.rowcount > 0

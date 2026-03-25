@@ -30,6 +30,38 @@
             <label class="filter-label">Min Call Score:</label>
             <input type="number" id="filterMinScore" class="form-control filter-ctrl" placeholder="0" min="0" max="100" style="width: 80px;">
         </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <label class="filter-label">Search:</label>
+            <input type="text" id="filterSearch" class="form-control filter-ctrl" placeholder="Name or email…" style="width: 170px;">
+        </div>
+        <div style="margin-left:auto; font-size:0.78rem; color:var(--text-secondary);">
+            <i class="fa-solid fa-users" style="margin-right:0.3rem;"></i>
+            <span id="evalCount">0</span> candidates
+        </div>
+    </div>
+</div>
+
+<!-- Summary Stats -->
+<div id="evalSummary" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap:0.75rem; margin-bottom:1rem;">
+    <div class="card" style="padding:0.7rem 1rem; text-align:center;">
+        <div style="font-size:0.68rem; text-transform:uppercase; color:var(--text-secondary); letter-spacing:0.04em;">Total Evaluated</div>
+        <div id="sumTotal" style="font-size:1.5rem; font-weight:800; color:var(--accent-indigo);">0</div>
+    </div>
+    <div class="card" style="padding:0.7rem 1rem; text-align:center;">
+        <div style="font-size:0.68rem; text-transform:uppercase; color:var(--text-secondary); letter-spacing:0.04em;">Avg Call Score</div>
+        <div id="sumAvg" style="font-size:1.5rem; font-weight:800; color:var(--accent-emerald);">0</div>
+    </div>
+    <div class="card" style="padding:0.7rem 1rem; text-align:center;">
+        <div style="font-size:0.68rem; text-transform:uppercase; color:var(--text-secondary); letter-spacing:0.04em;">Online Test</div>
+        <div id="sumOT" style="font-size:1.5rem; font-weight:800; color:#0891b2;">0</div>
+    </div>
+    <div class="card" style="padding:0.7rem 1rem; text-align:center;">
+        <div style="font-size:0.68rem; text-transform:uppercase; color:var(--text-secondary); letter-spacing:0.04em;">Technical</div>
+        <div id="sumTR" style="font-size:1.5rem; font-weight:800; color:#7c3aed;">0</div>
+    </div>
+    <div class="card" style="padding:0.7rem 1rem; text-align:center;">
+        <div style="font-size:0.68rem; text-transform:uppercase; color:var(--text-secondary); letter-spacing:0.04em;">Rejected</div>
+        <div id="sumRej" style="font-size:1.5rem; font-weight:800; color:#dc2626;">0</div>
     </div>
 </div>
 
@@ -252,6 +284,7 @@ async function loadCandidates() {
         ALL_CANDIDATES = data.candidates;
         populateRoleFilter();
         renderTable();
+        updateSummary();
     } catch (e) {
         document.getElementById('evalTableBody').innerHTML =
             `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--accent-rose);">
@@ -279,8 +312,18 @@ function renderTable() {
             if (sf === 'pending' && cs) return false;
             if (sf !== 'pending' && cs !== sf) return false;
         }
+        // Name/email search
+        const term = (document.getElementById('filterSearch').value||'').toLowerCase().trim();
+        if (term) {
+            const name = (c.full_name||'').toLowerCase();
+            const email = (c.email||'').toLowerCase();
+            if (!name.includes(term) && !email.includes(term)) return false;
+        }
         return true;
     });
+
+    // Update eval count badge
+    document.getElementById('evalCount').textContent = filtered.length;
 
     const tbody = document.getElementById('evalTableBody');
     if (!filtered.length) {
@@ -316,6 +359,20 @@ function renderTable() {
 document.getElementById('filterRole').addEventListener('change', renderTable);
 document.getElementById('filterStatus').addEventListener('change', renderTable);
 document.getElementById('filterMinScore').addEventListener('input', renderTable);
+document.getElementById('filterSearch').addEventListener('input', renderTable);
+
+function updateSummary() {
+    const total = ALL_CANDIDATES.length;
+    const avg = total ? Math.round(ALL_CANDIDATES.reduce((s,c)=>s+(c.qa_score||0),0)/total) : 0;
+    const ot = ALL_CANDIDATES.filter(c=>(c.call_selection_status||'').toLowerCase()==='online_test').length;
+    const tr = ALL_CANDIDATES.filter(c=>(c.call_selection_status||'').toLowerCase()==='technical_round').length;
+    const rej = ALL_CANDIDATES.filter(c=>(c.call_selection_status||'').toLowerCase()==='rejected').length;
+    document.getElementById('sumTotal').textContent = total;
+    document.getElementById('sumAvg').textContent = avg;
+    document.getElementById('sumOT').textContent = ot;
+    document.getElementById('sumTR').textContent = tr;
+    document.getElementById('sumRej').textContent = rej;
+}
 
 // ── Panel helpers ─────────────────────────────────────────
 function showPanel(id) {

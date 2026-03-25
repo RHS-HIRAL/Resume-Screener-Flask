@@ -18,6 +18,10 @@ class Config:
     PG_USER = os.getenv("PG_USER", "postgres")
     PG_PASSWORD = os.getenv("PG_PASSWORD", "")
 
+    # ── Field-Level Encryption ────────────────────────────────────────────────
+    # Fernet symmetric key protecting sensitive candidate fields (CTC, HR notes).
+    HR_ENCRYPTION_KEY = os.getenv("HR_ENCRYPTION_KEY", "")
+
     # API Keys — Google Gemini (up to 10 keys, round-robin fallback)
     GOOGLE_API_KEYS = [
         key
@@ -37,8 +41,6 @@ class Config:
     ]
 
     # API Keys — Groq compound models (up to 4 keys, round-robin fallback)
-    # Each key is tried with compound-beta first, then compound-beta-mini.
-    # Env vars: GROQ_API_KEY, GROQ_API_KEY2, GROQ_API_KEY3, … GROQ_API_KEY4
     GROQ_API_KEYS = [
         key
         for key in [

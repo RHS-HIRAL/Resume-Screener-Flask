@@ -2,10 +2,11 @@
 
 import logging
 from flask import Blueprint, render_template, flash
-from flask_login import login_required
+from flask_login import login_required, current_user
 
 from app.db.candidates import get_stats, get_all_candidates
 from app.db.jobs import get_all_jobs
+from app.utils.role_access import can_write_sensitive
 
 views_bp = Blueprint("views", __name__)
 
@@ -77,7 +78,12 @@ def responses():
 @views_bp.route("/candidate-information")
 @login_required
 def candidate_information():
-    return render_template("candidate_information.html")
+    role = getattr(current_user, "role", "recruiter")
+    return render_template(
+        "candidate_information.html",
+        user_role=role,
+        user_can_write_sensitive=can_write_sensitive(role),
+    )
 
 @views_bp.route("/call-eval-results")
 @login_required
