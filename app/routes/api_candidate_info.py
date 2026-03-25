@@ -2,7 +2,7 @@
 # API endpoints for the Candidate Information page.
 
 from flask import Blueprint, request, jsonify, Response, stream_with_context
-from flask_login import login_required
+from flask_login import login_required, current_user
 
 from app.db.candidates import (
     get_roles_with_selected_candidates,
@@ -41,7 +41,8 @@ def api_ci_candidates_for_role(job_id: int):
 def api_ci_profile(candidate_id: int):
     """Return the full enriched profile for a single candidate."""
     try:
-        profile = get_candidate_full_profile(candidate_id)
+        user_role = getattr(current_user, "role", "recruiter")
+        profile = get_candidate_full_profile(candidate_id, user_role=user_role)
         if not profile:
             return jsonify({"success": False, "error": "Candidate not found"}), 404
         return jsonify({"success": True, "profile": profile})
@@ -57,7 +58,8 @@ def api_ci_save_hr(candidate_id: int):
     """Save the fully editable profile details for a candidate."""
     data = request.get_json(silent=True) or {}
     try:
-        updated = update_candidate_full_profile(candidate_id, data)
+        user_role = getattr(current_user, "role", "recruiter")
+        updated = update_candidate_full_profile(candidate_id, data, user_role=user_role)
         if not updated:
             return jsonify({"success": False, "error": "Candidate not found"}), 404
         return jsonify({"success": True})
