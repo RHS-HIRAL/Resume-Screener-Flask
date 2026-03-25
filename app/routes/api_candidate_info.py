@@ -49,7 +49,9 @@ def api_ci_profile(candidate_id: int):
         return jsonify({"success": False, "error": str(e)}), 500
 
 
-@api_candidate_info_bp.route("/api/candidate-info/<int:candidate_id>/hr", methods=["POST"])
+@api_candidate_info_bp.route(
+    "/api/candidate-info/<int:candidate_id>/hr", methods=["POST"]
+)
 @login_required
 def api_ci_save_hr(candidate_id: int):
     """Save the fully editable profile details for a candidate."""
@@ -102,7 +104,12 @@ def api_ci_resume(candidate_id: int):
         ]
 
         if not subfolders:
-            return jsonify({"success": False, "error": f"No SharePoint folder found for job_id {job_id}"}), 404
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"No SharePoint folder found for job_id {job_id}",
+                }
+            ), 404
 
         target_folder = subfolders[0]["name"]
         folder_path = f"{Config.SHAREPOINT_JOBS_FOLDER}/{target_folder}"
@@ -110,12 +117,21 @@ def api_ci_resume(candidate_id: int):
         # Step 2: Find the file whose name matches resume_filename
         files = sp._list_folder_children(folder_path)
         target_file = next(
-            (f for f in files if "file" in f and f["name"].lower() == resume_filename.lower()),
-            None
+            (
+                f
+                for f in files
+                if "file" in f and f["name"].lower() == resume_filename.lower()
+            ),
+            None,
         )
 
         if not target_file:
-            return jsonify({"success": False, "error": f"Resume '{resume_filename}' not found in SharePoint folder '{target_folder}'"}), 404
+            return jsonify(
+                {
+                    "success": False,
+                    "error": f"Resume '{resume_filename}' not found in SharePoint folder '{target_folder}'",
+                }
+            ), 404
 
         # Step 3: Download and stream the file
         drive_id = sp._get_drive_id()
@@ -130,11 +146,14 @@ def api_ci_resume(candidate_id: int):
         # ── DOCX: convert to HTML via mammoth and serve inline ──────────────
         if fn_lower.endswith(".docx"):
             import mammoth, io
-            resp = sp.session.get(download_url, headers=headers, timeout=60, allow_redirects=True)
+
+            resp = sp.session.get(
+                download_url, headers=headers, timeout=60, allow_redirects=True
+            )
             resp.raise_for_status()
             result = mammoth.convert_to_html(io.BytesIO(resp.content))
             html_body = result.value
-            
+
             styled_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -174,7 +193,9 @@ def api_ci_resume(candidate_id: int):
             return Response(styled_html, content_type="text/html; charset=utf-8")
 
         # ── PDF: stream directly ──────────────
-        resp = sp.session.get(download_url, headers=headers, timeout=60, stream=True, allow_redirects=True)
+        resp = sp.session.get(
+            download_url, headers=headers, timeout=60, stream=True, allow_redirects=True
+        )
         resp.raise_for_status()
 
         if fn_lower.endswith(".pdf"):

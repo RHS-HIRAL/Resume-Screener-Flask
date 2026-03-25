@@ -1,3 +1,5 @@
+# app/db/jobs.py — Job and scoring configuration storage.
+
 from psycopg2.extras import Json
 from app.db.connection import get_cursor
 

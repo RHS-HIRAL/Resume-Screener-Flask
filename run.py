@@ -16,7 +16,8 @@ def setup_initial_state():
     user = get_user_by_username("admin")
     if not user:
         print("Creating default admin user...")
-        create_user("admin", "admin123", is_admin=1)
+        create_user("admin", "admin123", is_admin=1, role="admin")
+        print("Default admin created. IMPORTANT: change the password immediately.")
 
 
 if __name__ == "__main__":

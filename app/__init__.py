@@ -23,7 +23,6 @@ def create_app() -> Flask:
 
     login_manager = LoginManager()
     login_manager.init_app(app)
-    # Must match the blueprint name + function: "auth" blueprint, "login" function
     login_manager.login_view = "auth.login"
     login_manager.login_message = "Please log in to access this page."
     login_manager.login_message_category = "warning"
@@ -38,13 +37,13 @@ def create_app() -> Flask:
                     user_data["id"],
                     user_data["username"],
                     user_data["is_admin"],
+                    role=user_data.get("role", "recruiter"),
                 )
         except Exception:
             pass
         return None
 
     # ── Blueprints ────────────────────────────────────────────────────────────
-    # Import here (inside factory) to avoid circular imports at module load time
     from app.routes.auth import auth_bp
     from app.routes.views import views_bp
     from app.routes.api_analysis import api_analysis_bp
@@ -53,6 +52,7 @@ def create_app() -> Flask:
     from app.routes.api_qa import api_qa_bp
     from app.routes.api_upload import api_upload_bp
     from app.routes.api_candidate_info import api_candidate_info_bp
+    from app.routes.api_users import api_users_bp  # NEW: user management
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(views_bp)
@@ -62,5 +62,6 @@ def create_app() -> Flask:
     app.register_blueprint(api_qa_bp)
     app.register_blueprint(api_upload_bp)
     app.register_blueprint(api_candidate_info_bp)
+    app.register_blueprint(api_users_bp)
 
     return app
