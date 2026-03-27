@@ -438,7 +438,7 @@
                 const maxScore = data.max_score || confirmedNumbers.length * 10;
                 document.getElementById('result_section').style.display = 'block';
                 document.getElementById('numeric_score').innerText = data.numeric_score;
-                document.getElementById('score_denominator').innerText = `QA Score (out of ${maxScore})`;
+                document.getElementById('score_denominator').innerText = `QA Score (out of 100)`;
                 renderEvaluation(data.score_text, maxScore);
                 document.getElementById('result_section').scrollIntoView({ behavior: 'smooth' });
                 fetchHistory(cid);
@@ -598,7 +598,7 @@
         const maxSc = (r.token_meta && r.token_meta.max_score) || extractMaxScore(r.score_text) || 50;
         document.getElementById('result_section').style.display = 'block';
         document.getElementById('numeric_score').innerText = score || '??';
-        document.getElementById('score_denominator').innerText = `QA Score (out of ${maxSc})`;
+        document.getElementById('score_denominator').innerText = `QA Score (out of 50)`;
         renderEvaluation(r.score_text, maxSc);
         document.getElementById('result_section').scrollIntoView({ behavior: 'smooth' });
     }

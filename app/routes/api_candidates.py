@@ -281,8 +281,24 @@ def _sync_ms_form_responses_logic() -> int:
                     candidate = candidate_map[email_clean]
 
                     # Decide if this is a "new" update (they didn't have one, or the data changed)
-                    # For simplicity, we just update it and if they already had a response, we reset status.
-                    had_previous_response = candidate.get("form_responses") is not None
+                    existing_responses = candidate.get("form_responses")
+                    had_previous_response = existing_responses is not None
+
+                    # Check if the data has actually changed to prevent resetting status unnecessarily
+                    data_changed = True
+                    if had_previous_response:
+                        import json
+                        try:
+                            # Normalize both mappings through JSON to handle any minor type differences
+                            old_normalized = json.loads(json.dumps(existing_responses, ensure_ascii=False))
+                            new_normalized = json.loads(json.dumps(latest_row, ensure_ascii=False))
+                            if old_normalized == new_normalized:
+                                data_changed = False
+                        except Exception as e:
+                            print(f"[SYNC WARNING] Failed to compare form responses for {email_clean}: {e}")
+
+                    if not data_changed:
+                        continue
 
                     try:
                         updated = update_candidate_form_response(
@@ -290,7 +306,7 @@ def _sync_ms_form_responses_logic() -> int:
                         )
 
                         if updated:
-                            # If they submitted a new response after already having one, reset status to PENDING
+                            # If they submitted a new or modified response, reset status to PENDING
                             if had_previous_response:
                                 update_candidate_selection_status(
                                     candidate["id"], "PENDING"
