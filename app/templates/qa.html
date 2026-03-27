@@ -598,7 +598,7 @@
         const maxSc = (r.token_meta && r.token_meta.max_score) || extractMaxScore(r.score_text) || 50;
         document.getElementById('result_section').style.display = 'block';
         document.getElementById('numeric_score').innerText = score || '??';
-        document.getElementById('score_denominator').innerText = `QA Score (out of 50)`;
+        document.getElementById('score_denominator').innerText = `QA Score (out of ${maxSc})`;
         renderEvaluation(r.score_text, maxSc);
         document.getElementById('result_section').scrollIntoView({ behavior: 'smooth' });
     }
