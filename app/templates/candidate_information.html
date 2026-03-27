@@ -622,7 +622,7 @@
 
 <div class="page-header">
     <h1 class="page-title">Candidate Profile</h1>
-    <p class="page-subtitle">View complete candidate profile and add HR notes for selected candidates.</p>
+    <p class="page-subtitle">View complete candidate profile and add HR notes for screened candidates.</p>
 </div>
 
 <!-- Filter bar -->
@@ -820,7 +820,9 @@
             (data.candidates || []).forEach(c => {
                 const opt = document.createElement('option');
                 opt.value = c.id;
-                opt.textContent = c.full_name;
+                const score = c.match_score != null ? ` (${c.match_score}%)` : '';
+                opt.textContent = c.full_name + score;
+                opt.dataset.status = c.selection_status || '';
                 candSel.appendChild(opt);
             });
             candSel.disabled = false;
@@ -837,6 +839,28 @@
 
         currentCandidateId = id;
         localStorage.setItem(STORAGE_KEY_CANDIDATE, id);
+
+        // Update status badge from dropdown dataset
+        const selectedOpt = candSel.options[candSel.selectedIndex];
+        const status = (selectedOpt.dataset.status || '').toLowerCase();
+        const metaChip = document.getElementById('ci-meta-chip');
+        const badge = document.getElementById('ci-status-badge');
+        if (status) {
+            const statusConfig = {
+                'selected':    { icon: 'fa-circle-check', color: 'var(--accent-emerald)', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.2)' },
+                'rejected':    { icon: 'fa-circle-xmark', color: 'var(--accent-rose)',    bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.2)' },
+                'shortlisted': { icon: 'fa-star',         color: '#d97706',               bg: 'rgba(251,191,36,0.1)',  border: 'rgba(251,191,36,0.2)' },
+                'pending':     { icon: 'fa-clock',        color: 'var(--text-secondary)',  bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)' },
+            };
+            const cfg = statusConfig[status] || statusConfig['pending'];
+            badge.style.background = cfg.bg;
+            badge.style.color = cfg.color;
+            badge.style.borderColor = cfg.border;
+            badge.innerHTML = `<i class="fa-solid ${cfg.icon}"></i> ${status.charAt(0).toUpperCase() + status.slice(1)}`;
+            metaChip.style.display = 'flex';
+        } else {
+            metaChip.style.display = 'none';
+        }
 
         // Loading state
         document.getElementById('ci-details-body').innerHTML = `
