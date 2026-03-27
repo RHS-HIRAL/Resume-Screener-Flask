@@ -488,7 +488,10 @@ class SyncSharePointManager:
             return set()
 
     def upload_jd_pdf(
-        self, file_path: str, target_filename: str, metadata: dict = None,
+        self,
+        file_path: str,
+        target_filename: str,
+        metadata: dict = None,
         subfolder: str = "",
     ) -> dict:
         drive_id = self._get_drive_id()
@@ -528,19 +531,6 @@ class SyncSharePointManager:
             drive_id = self._get_drive_id()
             self._set_metadata(drive_id, item.get("id", ""), metadata, JD_FIELD_MAP)
         return item
-
-    def find_item_by_path(self, remote_path: str) -> Optional[dict]:
-        drive_id = self._get_drive_id()
-        encoded = quote(remote_path.strip("/"))
-        try:
-            resp = self._request(
-                "GET", f"{self.base}/drives/{drive_id}/root:/{encoded}", timeout=15
-            )
-            if resp.status_code == 200:
-                return resp.json()
-        except Exception:
-            pass
-        return None
 
     def get_folder_files_metadata(self, folder_path: str) -> dict:
         """
