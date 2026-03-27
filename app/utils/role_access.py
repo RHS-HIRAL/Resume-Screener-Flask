@@ -60,11 +60,6 @@ def _check(role: str, capability: str) -> bool:
 # ── Simple boolean helpers (use in route / DB logic) ─────────────────────────
 
 
-def can_read_sensitive(role: str) -> bool:
-    """Return True if *role* is allowed to see plain-text sensitive fields."""
-    return _check(role, "read_sensitive")
-
-
 def can_write_sensitive(role: str) -> bool:
     """Return True if *role* is allowed to update sensitive fields."""
     return _check(role, "write_sensitive")
@@ -73,15 +68,6 @@ def can_write_sensitive(role: str) -> bool:
 def can_write_candidates(role: str) -> bool:
     """Return True if *role* is allowed to modify non-sensitive candidate data."""
     return _check(role, "write_candidates")
-
-
-def can_manage_users(role: str) -> bool:
-    """Return True if *role* can create / modify other user accounts."""
-    return _check(role, "manage_users")
-
-
-def is_valid_role(role: str) -> bool:
-    return role in VALID_ROLES
 
 
 def display_role(role: str) -> str:
@@ -127,18 +113,3 @@ def require_role(*allowed_roles: str):
         return wrapper
 
     return decorator
-
-
-def require_write_access(fn):
-    """Decorator: reject interviewer (read-only) from any write endpoint."""
-
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        role = getattr(current_user, "role", "recruiter")
-        if not can_write_candidates(role):
-            return jsonify(
-                {"error": "Your role is read-only and cannot modify candidate data."}
-            ), 403
-        return fn(*args, **kwargs)
-
-    return wrapper

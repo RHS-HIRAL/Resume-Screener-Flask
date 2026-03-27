@@ -131,21 +131,6 @@ def get_breakdown_by_resume(resume_filename: str, job_id: int) -> Optional[dict]
         return None
 
 
-def get_candidates_for_role(role_name: str) -> list:
-    with get_cursor() as cur:
-        cur.execute(
-            """
-            SELECT c.*, j.role_name
-            FROM candidates c
-            JOIN jobs j ON c.job_id = j.id
-            WHERE j.role_name = %s
-            ORDER BY c.match_score DESC, c.screened_at DESC
-            """,
-            (role_name,),
-        )
-        return [dict(r) for r in cur.fetchall()]
-
-
 def get_unsynced_candidates() -> List[Dict]:
     with get_cursor() as cur:
         cur.execute("""
@@ -311,11 +296,17 @@ def get_stats() -> dict:
         sent = cur.fetchone()["cnt"]
         cur.execute("SELECT AVG(match_score) AS avg FROM candidates")
         avg_sc = cur.fetchone()["avg"] or 0
-        cur.execute("SELECT COUNT(*) AS cnt FROM candidates WHERE selection_status = 'Selected'")
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM candidates WHERE selection_status = 'Selected'"
+        )
         selected = cur.fetchone()["cnt"]
-        cur.execute("SELECT COUNT(*) AS cnt FROM candidates WHERE selection_status = 'Rejected'")
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM candidates WHERE selection_status = 'Rejected'"
+        )
         rejected = cur.fetchone()["cnt"]
-        cur.execute("SELECT COUNT(*) AS cnt FROM candidates WHERE selection_status = 'Shortlisted'")
+        cur.execute(
+            "SELECT COUNT(*) AS cnt FROM candidates WHERE selection_status = 'Shortlisted'"
+        )
         shortlisted = cur.fetchone()["cnt"]
         cur.execute("SELECT COUNT(*) AS cnt FROM candidates WHERE qa_score IS NOT NULL")
         call_evaluated = cur.fetchone()["cnt"]
@@ -781,8 +772,3 @@ def update_call_selection_status(candidate_db_id: int, status: str | None) -> bo
             (status, candidate_db_id),
         )
         return cur.rowcount > 0
-
-
-def update_candidate_next_round(candidate_db_id: int, decision: str) -> bool:
-    """Deprecated: use update_call_selection_status instead."""
-    return update_call_selection_status(candidate_db_id, decision)

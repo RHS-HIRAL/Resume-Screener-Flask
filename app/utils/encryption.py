@@ -133,11 +133,6 @@ def decrypt_field(value: str | None, user_role: str) -> str | None:
         return "[decryption error]"
 
 
-def is_encrypted(value: str | None) -> bool:
-    """Return True if *value* is stored in encrypted form."""
-    return bool(value and isinstance(value, str) and value.startswith(ENCRYPTED_PREFIX))
-
-
 def apply_sensitive_mask(candidate_dict: dict, user_role: str) -> dict:
     """
     Decrypt or mask all SENSITIVE_FIELDS in *candidate_dict* in place.

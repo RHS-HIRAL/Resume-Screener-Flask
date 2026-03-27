@@ -13,7 +13,6 @@ from app.db.candidates import (
     bulk_update_candidate_status,
     get_candidate_by_id,
     get_candidates_by_ids,
-    get_unsynced_candidates,
     update_candidate_form_response,
     update_candidate_form_score,
     delete_candidates_by_ids,
@@ -288,14 +287,21 @@ def _sync_ms_form_responses_logic() -> int:
                     data_changed = True
                     if had_previous_response:
                         import json
+
                         try:
                             # Normalize both mappings through JSON to handle any minor type differences
-                            old_normalized = json.loads(json.dumps(existing_responses, ensure_ascii=False))
-                            new_normalized = json.loads(json.dumps(latest_row, ensure_ascii=False))
+                            old_normalized = json.loads(
+                                json.dumps(existing_responses, ensure_ascii=False)
+                            )
+                            new_normalized = json.loads(
+                                json.dumps(latest_row, ensure_ascii=False)
+                            )
                             if old_normalized == new_normalized:
                                 data_changed = False
                         except Exception as e:
-                            print(f"[SYNC WARNING] Failed to compare form responses for {email_clean}: {e}")
+                            print(
+                                f"[SYNC WARNING] Failed to compare form responses for {email_clean}: {e}"
+                            )
 
                     if not data_changed:
                         continue
