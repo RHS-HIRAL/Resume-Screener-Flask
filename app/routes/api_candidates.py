@@ -273,79 +273,51 @@ def _sync_ms_form_responses_logic() -> tuple[int, list[str]]:
 
             # Now we have the latest response for each email present in this Excel part.
             for email_clean, latest_row in latest_rows_by_email.items():
-                if email_clean in candidate_map:
-                    candidate = candidate_map[email_clean]
+                if email_clean not in candidate_map:
+                    continue
 
-                    # Decide if this is a "new" update (they didn't have one, or the data changed)
-                    existing_responses = candidate.get("form_responses")
-                    had_previous_response = existing_responses is not None
+                candidate = candidate_map[email_clean]
+                existing_responses = candidate.get("form_responses")
 
-                    # Check if the data has actually changed to prevent resetting status unnecessarily
-                    data_changed = True
-                    if had_previous_response:
-                        import json
+                # Only sync candidates who do NOT yet have a form response stored.
+                # If they already have one, their selection_status is intentionally set
+                # by a reviewer and must NOT be reset.  A genuine re-submission (different
+                # answers) is an edge-case that requires deliberate handling; silently
+                # overwriting would discard reviewer decisions made after the first sync.
+                if existing_responses is not None:
+                    continue
 
+                try:
+                    updated = update_candidate_form_response(email_clean, latest_row)
+
+                    if updated:
+                        total_sync_count += 1
+                        synced_names.append(candidate.get("full_name", email_clean))
+
+                        # Auto-calculate the Form Score upon first sync
                         try:
-                            # Normalize both mappings through JSON to handle any minor type differences
-                            old_normalized = json.loads(
-                                json.dumps(existing_responses, ensure_ascii=False)
+                            job_id = candidate.get("job_id")
+                            jd_text = get_jd_text(job_id) if job_id else ""
+
+                            jobs = get_all_jobs()
+                            job = next((j for j in jobs if j["id"] == job_id), {})
+                            custom_weights = job.get("scoring_weights")
+
+                            score_result = calculate_form_score(
+                                latest_row, jd_text, custom_weights
                             )
-                            new_normalized = json.loads(
-                                json.dumps(latest_row, ensure_ascii=False)
-                            )
-                            if old_normalized == new_normalized:
-                                data_changed = False
-                        except Exception as e:
+                            if score_result.get("score") is not None:
+                                update_candidate_form_score(
+                                    candidate["id"], score_result["score"]
+                                )
+                        except Exception as score_err:
                             print(
-                                f"[SYNC WARNING] Failed to compare form responses for {email_clean}: {e}"
+                                f"[SYNC ERROR] Scoring failed for {email_clean}: {score_err}"
                             )
-
-                    if not data_changed:
-                        continue
-
-                    try:
-                        updated = update_candidate_form_response(
-                            email_clean, latest_row
-                        )
-
-                        if updated:
-                            # If they submitted a new or modified response, reset status to PENDING
-                            if had_previous_response:
-                                update_candidate_selection_status(
-                                    candidate["id"], "PENDING"
-                                )
-
-                            total_sync_count += 1
-                            synced_names.append(candidate.get("full_name", email_clean))
-                            # Auto-calculate the Form Score upon sync
-                            try:
-                                job_id = candidate.get("job_id")
-                                jd_text = get_jd_text(job_id) if job_id else ""
-
-                                # We fetch the specific job to get its custom weights
-                                jobs = get_all_jobs()
-                                job = next((j for j in jobs if j["id"] == job_id), {})
-                                custom_weights = job.get("scoring_weights")
-
-                                score_result = calculate_form_score(
-                                    latest_row, jd_text, custom_weights
-                                )
-                                if score_result.get("score") is not None:
-                                    update_candidate_form_score(
-                                        candidate["id"], score_result["score"]
-                                    )
-                            except Exception as score_err:
-                                print(
-                                    f"[SYNC ERROR] Scoring failed for {email_clean}: {score_err}"
-                                )
-
-                            # We don't delete from candidate_map here because a candidate might
-                            # (theoretically) appear in another excel file, but it's fine
-                            # since the latest loop aggregates by email anyway.
-                    except Exception as e:
-                        print(
-                            f"[SYNC ERROR] Row processing failed for {email_clean}: {e}"
-                        )
+                except Exception as e:
+                    print(
+                        f"[SYNC ERROR] Row processing failed for {email_clean}: {e}"
+                    )
 
         return total_sync_count, synced_names
     except Exception as e:

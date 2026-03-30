@@ -926,15 +926,17 @@ class SharePointMatchScoreUpdater:
         """
         import time
         import os
+        from config import Config
 
-        # Location of the stored auth state file (data_folder)
-        auth_state_path = os.path.join(
-            os.path.dirname(
+        # Resolve auth state path: if relative, anchor to project root
+        raw_path = Config.PLAYWRIGHT_AUTH_STATE_PATH
+        if not os.path.isabs(raw_path):
+            project_root = os.path.dirname(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            ),
-            "data_folder",
-            "playwright_auth_state.json",
-        )
+            )
+            auth_state_path = os.path.join(project_root, raw_path)
+        else:
+            auth_state_path = raw_path
 
         if not os.path.exists(auth_state_path):
             print(
@@ -1086,23 +1088,27 @@ class SharePointMatchScoreUpdater:
         The auth state is saved to playwright_auth_state.json in the project root.
         """
         import os
+        from config import Config
 
-        auth_state_path = os.path.join(
-            os.path.dirname(
+        # Resolve auth state path: if relative, anchor to project root
+        raw_path = Config.PLAYWRIGHT_AUTH_STATE_PATH
+        if not os.path.isabs(raw_path):
+            project_root = os.path.dirname(
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            ),
-            "data_folder",
-            "playwright_auth_state.json",
-        )
+            )
+            auth_state_path = os.path.join(project_root, raw_path)
+        else:
+            auth_state_path = raw_path
 
         os.makedirs(os.path.dirname(auth_state_path), exist_ok=True)
 
         try:
             from playwright.sync_api import sync_playwright
 
+            login_email = Config.MS365_LOGIN_EMAIL or "your-ms365-account@yourdomain.com"
             print("[OneDrive EXCEL] Opening browser for Microsoft 365 login...")
             print(
-                "[OneDrive EXCEL] Log in as deep.malusare@si2tech.com, then CLOSE the browser."
+                f"[OneDrive EXCEL] Log in as {login_email}, then CLOSE the browser."
             )
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=False)  # Visible window for login

@@ -615,10 +615,215 @@
         box-shadow: 0 2px 10px rgba(0,0,0,0.06);
     }
 
+    /* ── Selection status control ────────────────────────────── */
+    .ci-selection-ctrl {
+        display: none;
+        align-items: center;
+        gap: 0.5rem;
+        margin-left: auto;
+        align-self: flex-end;
+        padding-bottom: 0.1rem;
+    }
+
+    .ci-sel-label {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-secondary);
+        margin-right: 0.15rem;
+        white-space: nowrap;
+    }
+
+    .ci-sel-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.28rem 0.75rem;
+        border-radius: 99px;
+        font-size: 0.73rem;
+        font-weight: 700;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: all 0.18s;
+        white-space: nowrap;
+        background: rgba(255,255,255,0.04);
+        color: var(--text-secondary);
+        border-color: rgba(255,255,255,0.1);
+    }
+
+    .ci-sel-btn:hover:not(.active) {
+        filter: brightness(1.25);
+        transform: translateY(-1px);
+    }
+
+    .ci-sel-btn.active-selected {
+        background: rgba(16,185,129,0.15);
+        color: var(--accent-emerald, #10b981);
+        border-color: rgba(16,185,129,0.35);
+    }
+
+    .ci-sel-btn.active-rejected {
+        background: rgba(239,68,68,0.15);
+        color: #ef4444;
+        border-color: rgba(239,68,68,0.35);
+    }
+
+    .ci-sel-btn.active-pending {
+        background: rgba(99,102,241,0.15);
+        color: var(--accent-indigo, #6366f1);
+        border-color: rgba(99,102,241,0.35);
+    }
+
+    .ci-sel-btn.saving {
+        opacity: 0.55;
+        pointer-events: none;
+    }
+
+
+    /* ── Unsaved-changes overlay ──────────────────────────── */
+    #ci-unsaved-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.28);
+        z-index: 10000;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+    }
+    #ci-unsaved-overlay.show {
+        display: flex;
+        animation: ub-fadein 0.16s ease both;
+    }
+    @keyframes ub-fadein {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+
+    .ci-unsaved-box {
+        background: #ffffff;
+        border: 1px solid rgba(0,0,0,0.08);
+        border-left: 3px solid #f59e0b;
+        border-radius: 12px;
+        padding: 1.4rem 1.6rem 1.3rem;
+        max-width: 340px;
+        width: 90%;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06);
+        animation: ub-scalein 0.18s cubic-bezier(0.34,1.4,0.64,1) both;
+    }
+    @keyframes ub-scalein {
+        from { transform: scale(0.95); opacity: 0; }
+        to   { transform: scale(1);    opacity: 1; }
+    }
+
+    .ci-unsaved-top {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin-bottom: 0.45rem;
+    }
+    .ci-unsaved-top i {
+        font-size: 0.8rem;
+        color: #d97706;
+        flex-shrink: 0;
+    }
+    .ci-unsaved-top h3 {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #1a1d2e;
+        margin: 0;
+        letter-spacing: 0.01em;
+    }
+
+    .ci-unsaved-box p {
+        font-size: 0.76rem;
+        color: #64748b;
+        line-height: 1.6;
+        margin: 0 0 1.1rem;
+        padding-left: 1.35rem;
+    }
+
+    .ci-unsaved-actions {
+        display: flex;
+        gap: 0.45rem;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    .ci-unsaved-actions button {
+        padding: 0.35rem 0.85rem;
+        border-radius: 7px;
+        font-size: 0.74rem;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.14s;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        line-height: 1;
+    }
+
+    .ci-unsaved-actions .ub-cancel {
+        border: none;
+        background: transparent;
+        color: #94a3b8;
+    }
+    .ci-unsaved-actions .ub-cancel:hover { color: #64748b; }
+
+    .ci-unsaved-actions .ub-discard {
+        border: 1px solid rgba(220,38,38,0.25);
+        background: rgba(220,38,38,0.05);
+        color: #dc2626;
+    }
+    .ci-unsaved-actions .ub-discard:hover {
+        background: rgba(220,38,38,0.1);
+        border-color: rgba(220,38,38,0.4);
+    }
+
+    .ci-unsaved-actions .ub-save {
+        border: none;
+        background: linear-gradient(135deg, #06b6d4, #0891b2);
+        color: #fff;
+        box-shadow: 0 2px 8px rgba(6,182,212,0.28);
+    }
+    .ci-unsaved-actions .ub-save:hover {
+        box-shadow: 0 4px 14px rgba(6,182,212,0.4);
+        transform: translateY(-1px);
+    }
+
+    /* Dirty pulse on Save button */
+    .btn-save-hr.dirty {
+        animation: pulse-dirty 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse-dirty {
+        0%, 100% { box-shadow: 0 4px 14px rgba(6,182,212,0.2); }
+        50%       { box-shadow: 0 4px 22px rgba(6,182,212,0.5); }
+    }
+
 </style>
 
 <!-- Toast -->
 <div id="ci-toast"><i class="fa-solid fa-circle-check"></i><span id="ci-toast-msg">Saved.</span></div>
+
+<!-- Unsaved Changes Confirmation Overlay -->
+<div id="ci-unsaved-overlay">
+    <div class="ci-unsaved-box">
+        <div class="ci-unsaved-top">
+            <i class="fa-solid fa-pen-to-square"></i>
+            <h3>Unsaved Changes</h3>
+        </div>
+        <p>You have unsaved edits for this candidate.<br>Save before continuing, or discard?</p>
+        <div class="ci-unsaved-actions">
+            <button class="ub-cancel" id="ub-cancel-btn">Cancel</button>
+            <button class="ub-discard" id="ub-discard-btn"><i class="fa-solid fa-xmark"></i> Discard</button>
+            <button class="ub-save" id="ub-save-btn"><i class="fa-solid fa-floppy-disk"></i> Save &amp; Continue</button>
+        </div>
+    </div>
+</div>
 
 <div class="page-header">
     <h1 class="page-title">Candidate Profile</h1>
@@ -639,11 +844,18 @@
             <option value="">— Select Candidate —</option>
         </select>
     </div>
-    <div id="ci-meta-chip" style="display:none; margin-left: auto; align-self: flex-end; padding-bottom: 0.1rem;">
-        <span id="ci-status-badge"
-            style="padding: 0.25rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; background: rgba(16,185,129,0.1); color: var(--accent-emerald); border: 1px solid rgba(16,185,129,0.2);">
-            <i class="fa-solid fa-circle-check"></i> Selected
-        </span>
+    <!-- Interactive selection control -->
+    <div class="ci-selection-ctrl" id="ci-selection-ctrl">
+        <span class="ci-sel-label">Call Review:</span>
+        <button class="ci-sel-btn" id="sel-btn-selected" onclick="updateSelectionStatus('Selected')" title="Select for next round">
+            <i class="fa-solid fa-circle-check"></i> Select
+        </button>
+        <button class="ci-sel-btn" id="sel-btn-rejected" onclick="updateSelectionStatus('Not Selected')" title="Mark as not selected">
+            <i class="fa-solid fa-circle-xmark"></i> Not Selected
+        </button>
+        <button class="ci-sel-btn" id="sel-btn-pending" onclick="updateSelectionStatus('Pending')" title="Reset to pending">
+            <i class="fa-solid fa-clock"></i> Pending
+        </button>
     </div>
     <button class="btn-toggle-resume" id="btn-toggle-resume" onclick="toggleResume()">
         <i class="fa-solid fa-file-pdf"></i>
@@ -755,10 +967,63 @@
     let resumeVisible = true;
     let roleSelectUI = null;
     let candidateSelectUI = null;
+    let isDirty = false;          // true when any field has been edited but not saved
+    let _pendingNavUrl  = null;   // href to follow after unsaved-modal decision
+    let _pendingAction  = null;   // callback to run after unsaved-modal decision
     const STORAGE_KEY_ROLE = 'ci_last_role';
     const STORAGE_KEY_CANDIDATE = 'ci_last_candidate';
     const STORAGE_KEY_LAYOUT = 'ci_layout_split';
     const STORAGE_KEY_CARDS = 'ci_cards_collapsed';
+
+    // ── Dirty-state helpers ────────────────────────────────────────────────────
+    function markDirty() {
+        if (isDirty) return;
+        isDirty = true;
+        const btn = document.getElementById('ci-save-btn');
+        if (btn) btn.classList.add('dirty');
+    }
+
+    function clearDirty() {
+        isDirty = false;
+        const btn = document.getElementById('ci-save-btn');
+        if (btn) btn.classList.remove('dirty');
+    }
+
+    // ── Unsaved-changes modal ─────────────────────────────────────────────────
+    function showUnsavedModal(onSave, onDiscard, onCancel) {
+        const overlay = document.getElementById('ci-unsaved-overlay');
+        overlay.classList.add('show');
+
+        const saveBtn    = document.getElementById('ub-save-btn');
+        const discardBtn = document.getElementById('ub-discard-btn');
+        const cancelBtn  = document.getElementById('ub-cancel-btn');
+
+        // Clean up previous listeners
+        const fresh = (el) => { const c = el.cloneNode(true); el.parentNode.replaceChild(c, el); return c; };
+        const newSave    = fresh(saveBtn);
+        const newDiscard = fresh(discardBtn);
+        const newCancel  = fresh(cancelBtn);
+
+        const close = () => overlay.classList.remove('show');
+
+        newSave.addEventListener('click', async () => {
+            close();
+            await saveHR();
+            if (!isDirty) onSave?.(); // only proceed if save succeeded
+        });
+
+        newDiscard.addEventListener('click', () => {
+            close();
+            clearDirty();
+            onDiscard?.();
+        });
+
+        newCancel.addEventListener('click', () => {
+            close();
+            // Restore candidate-select to its previous option if this was a candidate switch
+            onCancel?.();
+        });
+    }
 
     // ── Init ───────────────────────────────────────────────────────────────────
     async function init() {
@@ -817,6 +1082,21 @@
 
     // ── Role change ────────────────────────────────────────────────────────────
     async function onRoleChange(silent = false) {
+        // Guard: block role switch if unsaved changes
+        if (!silent && isDirty) {
+            const roleSel = document.getElementById('ci-role-select');
+            const prevRole = localStorage.getItem(STORAGE_KEY_ROLE) || '';
+            showUnsavedModal(
+                () => onRoleChange(silent), // after save, retry
+                () => onRoleChange(silent), // after discard, proceed
+                () => {                     // cancel: restore dropdown
+                    roleSel.value = prevRole;
+                    if (roleSelectUI) roleSelectUI.refresh();
+                }
+            );
+            return;
+        }
+
         const roleSel = document.getElementById('ci-role-select');
         const candSel = document.getElementById('ci-candidate-select');
         const jobId = roleSel.value;
@@ -857,32 +1137,31 @@
     async function onCandidateChange() {
         const candSel = document.getElementById('ci-candidate-select');
         const id = parseInt(candSel.value);
+
+        // Guard: block candidate switch if unsaved changes
+        if (id && isDirty) {
+            const prevId = String(currentCandidateId || '');
+            showUnsavedModal(
+                () => { candSel.value = id; onCandidateChange(); }, // after save
+                () => { onCandidateChange(); },                     // after discard
+                () => {                                             // cancel: restore
+                    candSel.value = prevId;
+                    if (candidateSelectUI) candidateSelectUI.refresh();
+                }
+            );
+            return;
+        }
+
         if (!id) { resetPanels(); return; }
 
         currentCandidateId = id;
         localStorage.setItem(STORAGE_KEY_CANDIDATE, id);
+        clearDirty();
 
-        // Update status badge from dropdown dataset
+        // Update selection control from dropdown dataset
         const selectedOpt = candSel.options[candSel.selectedIndex];
-        const status = (selectedOpt.dataset.status || '').toLowerCase();
-        const metaChip = document.getElementById('ci-meta-chip');
-        const badge = document.getElementById('ci-status-badge');
-        if (status) {
-            const statusConfig = {
-                'selected':    { icon: 'fa-circle-check', color: 'var(--accent-emerald)', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.2)' },
-                'rejected':    { icon: 'fa-circle-xmark', color: 'var(--accent-rose)',    bg: 'rgba(248,113,113,0.1)', border: 'rgba(248,113,113,0.2)' },
-                'shortlisted': { icon: 'fa-star',         color: '#d97706',               bg: 'rgba(251,191,36,0.1)',  border: 'rgba(251,191,36,0.2)' },
-                'pending':     { icon: 'fa-clock',        color: 'var(--text-secondary)',  bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)' },
-            };
-            const cfg = statusConfig[status] || statusConfig['pending'];
-            badge.style.background = cfg.bg;
-            badge.style.color = cfg.color;
-            badge.style.borderColor = cfg.border;
-            badge.innerHTML = `<i class="fa-solid ${cfg.icon}"></i> ${status.charAt(0).toUpperCase() + status.slice(1)}`;
-            metaChip.style.display = 'flex';
-        } else {
-            metaChip.style.display = 'none';
-        }
+        const status = (selectedOpt.dataset.status || 'pending').toLowerCase();
+        refreshSelectionControl(status);
 
         // Loading state
         document.getElementById('ci-details-body').innerHTML = `
@@ -916,7 +1195,9 @@
         <div class="ci-empty" style="padding:3rem 1rem;"><i class="fa-solid fa-pen-to-square"></i>
         <p style="font-size:0.85rem;">HR fields will appear after selecting a candidate.</p></div>`;
         document.getElementById('ci-role-badge').style.display = 'none';
-        document.getElementById('ci-meta-chip').style.display = 'none';
+        // Hide selection control
+        const ctrl = document.getElementById('ci-selection-ctrl');
+        if (ctrl) ctrl.style.display = 'none';
         // Hide quick-info
         const qi = document.getElementById('ci-quick-info');
         if (qi) qi.style.display = 'none';
@@ -929,6 +1210,76 @@
         <i class="fa-solid fa-file-magnifying-glass"></i>
         <p>Select a candidate to view their resume.</p>
     </div>`;
+    }
+
+    // ── Selection Status Control ────────────────────────────────────────────────
+    function refreshSelectionControl(status) {
+        const ctrl = document.getElementById('ci-selection-ctrl');
+        if (!ctrl) return;
+        ctrl.style.display = 'flex';
+
+        const map = {
+            'selected':     'sel-btn-selected',
+            'not selected': 'sel-btn-rejected',
+            'pending':      'sel-btn-pending',
+        };
+        const activeClass = {
+            'sel-btn-selected': 'active-selected',
+            'sel-btn-rejected': 'active-rejected',
+            'sel-btn-pending':  'active-pending',
+        };
+        const normStatus = (status || 'pending').toLowerCase();
+        const activeBtnId = map[normStatus] || 'sel-btn-pending';
+
+        ['sel-btn-selected', 'sel-btn-rejected', 'sel-btn-pending'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (!btn) return;
+            btn.classList.remove('active-selected', 'active-rejected', 'active-pending');
+            if (id === activeBtnId) btn.classList.add(activeClass[id]);
+        });
+    }
+
+    async function updateSelectionStatus(newStatus) {
+        if (!currentCandidateId) return;
+
+        // Optimistic UI update
+        refreshSelectionControl(newStatus);
+
+        // Set saving state
+        ['sel-btn-selected', 'sel-btn-rejected', 'sel-btn-pending'].forEach(id => {
+            const btn = document.getElementById(id);
+            if (btn) btn.classList.add('saving');
+        });
+
+        try {
+            const res = await fetch('/api/candidate/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ candidate_id: currentCandidateId, status: newStatus })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(`Status updated to "${newStatus}"`, false);
+                // Also update the candidate dropdown option's dataset so it stays in sync
+                const candSel = document.getElementById('ci-candidate-select');
+                const opt = candSel.options[candSel.selectedIndex];
+                if (opt) opt.dataset.status = newStatus.toLowerCase();
+                if (candidateSelectUI) candidateSelectUI.refresh();
+            } else {
+                showToast('Update failed: ' + (data.error || 'Unknown error'), true);
+                // Revert to previous status from dataset
+                const candSel = document.getElementById('ci-candidate-select');
+                const opt = candSel.options[candSel.selectedIndex];
+                refreshSelectionControl((opt?.dataset.status || 'pending'));
+            }
+        } catch (e) {
+            showToast('Network error: ' + e.message, true);
+        } finally {
+            ['sel-btn-selected', 'sel-btn-rejected', 'sel-btn-pending'].forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.classList.remove('saving');
+            });
+        }
     }
 
     // ── Toggle Resume Panel ────────────────────────────────────────────────────
@@ -992,8 +1343,8 @@
         roleBadge.textContent = p.position_applied || '—';
         roleBadge.style.display = 'inline-block';
 
-        // Meta chip in filter bar
-        document.getElementById('ci-meta-chip').style.display = 'flex';
+        // Refresh selection control with the live status from the fetched profile
+        refreshSelectionControl(p.selection_status || 'pending');
 
         // ── Quick-info strip ─────────────────────────────────────────────────────
         const qi = document.getElementById('ci-quick-info');
@@ -1012,7 +1363,7 @@
 
         const inputVal = (key, v, placeholder = "") => {
             const safeVal = (v !== null && v !== undefined) ? escHtml(v) : '';
-            return `<textarea id="edit_${key}" rows="1" placeholder="${placeholder}" oninput="autoResize(this)" onfocus="autoResize(this)">${safeVal}</textarea>`;
+            return `<textarea id="edit_${key}" rows="1" placeholder="${placeholder}" oninput="autoResize(this); markDirty()" onfocus="autoResize(this)">${safeVal}</textarea>`;
         };
 
         // Copy button helper
@@ -1094,14 +1445,14 @@
                 return `<div class="lock-display">••••</div><i class="fa-solid fa-lock lock-icon"></i>`;
             }
             const safeVal = (v !== null && v !== undefined) ? escHtml(v) : '';
-            return `<textarea id="hr_${key}" rows="1" placeholder="${placeholder}" oninput="autoResize(this)" onfocus="autoResize(this)">${safeVal}</textarea>`;
+            return `<textarea id="hr_${key}" rows="1" placeholder="${placeholder}" oninput="autoResize(this); markDirty()" onfocus="autoResize(this)">${safeVal}</textarea>`;
         };
         const hrTextareaVal = (key, v, placeholder = "") => {
             if (!CAN_WRITE_SENSITIVE && SENSITIVE_KEYS.includes(key)) {
                 return `<div class="lock-display">••••</div><i class="fa-solid fa-lock lock-icon"></i>`;
             }
             const safeVal = (v !== null && v !== undefined) ? escHtml(v) : '';
-            return `<textarea id="hr_${key}" rows="2" placeholder="${placeholder}" oninput="autoResize(this)" onfocus="autoResize(this)">${safeVal}</textarea>`;
+            return `<textarea id="hr_${key}" rows="2" placeholder="${placeholder}" oninput="autoResize(this); markDirty()" onfocus="autoResize(this)">${safeVal}</textarea>`;
         };
 
         // Wrapper class: locked fields get a different wrapper
@@ -1233,6 +1584,7 @@
             });
             const data = await res.json();
             if (data.success) {
+                clearDirty();
                 showToast('Candidate Details saved successfully!', false);
                 // Show last-saved indicator
                 const lsEl = document.getElementById('ci-last-saved');
@@ -1393,5 +1745,32 @@
 
     // ── Boot ───────────────────────────────────────────────────────────────────
     init();
+
+    // ── Nav-link guard: intercept sidebar/header link clicks ──────────────────
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+        const href = link.getAttribute('href');
+        // Ignore anchor-only, javascript:, external, and current-page links
+        if (!href || href.startsWith('#') || href.startsWith('javascript') ||
+            href.startsWith('http') || href === window.location.pathname) return;
+        // Only block if we have dirty unsaved state
+        if (!isDirty) return;
+
+        e.preventDefault();
+        showUnsavedModal(
+            () => { window.location.href = href; }, // save then navigate
+            () => { window.location.href = href; }, // discard then navigate
+            null                                     // cancel: stay
+        );
+    });
+
+    // ── Browser back/refresh guard ─────────────────────────────────────────────
+    window.addEventListener('beforeunload', function(e) {
+        if (isDirty) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
 </script>
 {% endblock %}
