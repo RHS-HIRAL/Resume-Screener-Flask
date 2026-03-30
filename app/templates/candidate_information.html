@@ -746,10 +746,15 @@
 
 </div>
 
+{% endblock %}
+
+{% block scripts %}
 <script>
     // ── State ──────────────────────────────────────────────────────────────────
     let currentCandidateId = null;
     let resumeVisible = true;
+    let roleSelectUI = null;
+    let candidateSelectUI = null;
     const STORAGE_KEY_ROLE = 'ci_last_role';
     const STORAGE_KEY_CANDIDATE = 'ci_last_candidate';
     const STORAGE_KEY_LAYOUT = 'ci_layout_split';
@@ -757,21 +762,32 @@
 
     // ── Init ───────────────────────────────────────────────────────────────────
     async function init() {
+        // Init UI components first so they exist before options load
+        const roleSel = document.getElementById('ci-role-select');
+        const candSel = document.getElementById('ci-candidate-select');
+        if (roleSel && candSel) {
+            roleSelectUI = new SearchableSelect(roleSel);
+            candidateSelectUI = new SearchableSelect(candSel);
+        }
+
         loadLayout();
         initResizer();
         initCards();
         await loadRoles();
+        
         const savedRole = localStorage.getItem(STORAGE_KEY_ROLE);
         const savedCandidate = localStorage.getItem(STORAGE_KEY_CANDIDATE);
         if (savedRole) {
             const sel = document.getElementById('ci-role-select');
             if ([...sel.options].some(o => o.value === savedRole)) {
                 sel.value = savedRole;
+                if (roleSelectUI) roleSelectUI.refresh();
                 await onRoleChange(true);
                 if (savedCandidate) {
                     const cSel = document.getElementById('ci-candidate-select');
                     if ([...cSel.options].some(o => o.value === savedCandidate)) {
                         cSel.value = savedCandidate;
+                        if (candidateSelectUI) candidateSelectUI.refresh();
                         await onCandidateChange();
                     }
                 }
@@ -793,6 +809,7 @@
                 opt.textContent = r.display_name;
                 sel.appendChild(opt);
             });
+            if (roleSelectUI) roleSelectUI.refresh();
         } catch (e) {
             console.error('Failed to load roles', e);
         }
@@ -804,8 +821,12 @@
         const candSel = document.getElementById('ci-candidate-select');
         const jobId = roleSel.value;
 
+        if (roleSelectUI && silent) roleSelectUI.refresh();
+
         candSel.innerHTML = '<option value="">— Select Candidate —</option>';
         candSel.disabled = true;
+        if (candidateSelectUI) candidateSelectUI.refresh();
+
         if (!silent) {
             localStorage.setItem(STORAGE_KEY_ROLE, jobId);
             localStorage.removeItem(STORAGE_KEY_CANDIDATE);
@@ -824,6 +845,7 @@
                 candSel.appendChild(opt);
             });
             candSel.disabled = false;
+            if (candidateSelectUI) candidateSelectUI.refresh();
         } catch (e) {
             console.error('Failed to load candidates', e);
         }

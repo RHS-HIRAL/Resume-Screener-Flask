@@ -79,6 +79,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const applyGlobalBtn = document.getElementById("applyGlobalBtn");
     const uploadBtn = document.getElementById("uploadBtn");
 
+    let subfolderSelectUI = null;
+    if (subfolderSelect) {
+        subfolderSelectUI = new SearchableSelect(subfolderSelect);
+    }
+
     const sourceOptions = `
         <option value="">-- Select Required --</option>
         <option value="LinkedIn">LinkedIn</option>
@@ -94,6 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
         refreshSpBtn.disabled = true;
         refreshSpBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing...';
         subfolderSelect.innerHTML = '<option value="">Loading subfolders...</option>';
+        if (subfolderSelectUI) subfolderSelectUI.refresh();
         
         try {
             const res = await fetch("/api/upload/subfolders");
@@ -107,9 +113,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 opt.textContent = folder.name;
                 subfolderSelect.appendChild(opt);
             });
+            if (subfolderSelectUI) subfolderSelectUI.refresh();
         } catch (err) {
             console.error(err);
             subfolderSelect.innerHTML = '<option value="">Error loading folders</option>';
+            if (subfolderSelectUI) subfolderSelectUI.refresh();
             alert("Error loading SharePoint folders. Please try again.");
         } finally {
             refreshSpBtn.disabled = false;

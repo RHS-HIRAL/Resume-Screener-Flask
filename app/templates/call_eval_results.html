@@ -249,6 +249,13 @@
 let ALL_CANDIDATES = [];
 let CURRENT_CANDIDATE_ID = null;
 
+let filterRoleUI = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    const roleFilter = document.getElementById('filterRole');
+    if (roleFilter) filterRoleUI = new SearchableSelect(roleFilter);
+});
+
 // ── Helpers ──────────────────────────────────────────────
 const BREAKDOWN_ICONS = {
     experience:      '⏱ Experience',
@@ -297,6 +304,7 @@ function populateRoleFilter() {
     const sel = document.getElementById('filterRole');
     sel.innerHTML = '<option value="">All Roles</option>';
     roles.forEach(r => { const o=document.createElement('option'); o.value=r; o.textContent=formatRole(r); sel.appendChild(o); });
+    if (filterRoleUI) filterRoleUI.refresh();
 }
 
 function renderTable() {
