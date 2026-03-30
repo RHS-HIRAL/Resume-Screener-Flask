@@ -578,12 +578,21 @@
                 currentHistory = data.results;
                 list.innerHTML = data.results.map((r, idx) => {
                     const score = extractScore(r.score_text);
-                    const maxSc = (r.token_meta && r.token_meta.max_score) || extractMaxScore(r.score_text) || 50;
+                    const maxSc = (r.token_meta && r.token_meta.max_score) || extractMaxScore(r.score_text);
+                    
+                    let displayScore = 'View';
+                    if (score && maxSc) {
+                        const normalized = Math.ceil((parseInt(score) / parseInt(maxSc)) * 100);
+                        displayScore = `${normalized}/100`;
+                    } else if (score) {
+                        displayScore = score;
+                    }
+
                     return `
                     <div class="card" style="padding: 1rem; font-size: 0.85rem; cursor: pointer; border-left: 4px solid #10b981;" onclick="showPastResultByIdx(${idx})">
                         <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
                             <span style="font-weight: 700;">${new Date(r.created_at).toLocaleDateString()}</span>
-                            <span style="color: #10b981; font-weight: 800;">${score ? score + '/' + maxSc : 'View'}</span>
+                            <span style="color: #10b981; font-weight: 800;">${displayScore}</span>
                         </div>
                         <div style="color: var(--text-secondary); font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                             ${r.audio_filename || 'Direct Transcript'}
@@ -605,11 +614,19 @@
     function showPastResultByIdx(idx) {
         const r = currentHistory[idx];
         if (!r) return;
+        
         const score = extractScore(r.score_text);
-        const maxSc = (r.token_meta && r.token_meta.max_score) || extractMaxScore(r.score_text) || 50;
+        const maxSc = (r.token_meta && r.token_meta.max_score) || extractMaxScore(r.score_text);
+        
+        let normalized = score || '??';
+        if (score && maxSc) {
+            normalized = Math.ceil((parseInt(score) / parseInt(maxSc)) * 100);
+        }
+
         document.getElementById('result_section').style.display = 'block';
-        document.getElementById('numeric_score').innerText = score || '??';
-        document.getElementById('score_denominator').innerText = `QA Score (out of 50)`;
+        document.getElementById('numeric_score').innerText = normalized;
+        document.getElementById('score_denominator').innerText = `QA Score (out of 100)`;
+        
         renderEvaluation(r.score_text, maxSc);
         document.getElementById('result_section').scrollIntoView({ behavior: 'smooth' });
     }
