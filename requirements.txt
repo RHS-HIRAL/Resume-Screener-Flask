@@ -31,6 +31,7 @@ python-docx>=1.1.0
 msal>=1.28.0
 requests>=2.31.0
 bs4
+playwright>=1.40.0                # Headless browser for Forms→Excel sync
 
 # ── Pydantic (schema validation) ──────────────────────────────────────────────
 pydantic[email]>=2.0.0

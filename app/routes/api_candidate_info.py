@@ -5,8 +5,8 @@ from flask import Blueprint, request, jsonify, Response, stream_with_context
 from flask_login import login_required, current_user
 
 from app.db.candidates import (
-    get_roles_with_selected_candidates,
-    get_selected_candidates_for_role,
+    get_roles_with_candidates,
+    get_screened_candidates_for_role,
     get_candidate_full_profile,
     update_candidate_full_profile,
 )
@@ -17,9 +17,9 @@ api_candidate_info_bp = Blueprint("api_candidate_info", __name__)
 @api_candidate_info_bp.route("/api/candidate-info/roles")
 @login_required
 def api_ci_roles():
-    """Return all roles that have at least one Selected candidate."""
+    """Return all roles that have at least one screened candidate."""
     try:
-        roles = get_roles_with_selected_candidates()
+        roles = get_roles_with_candidates()
         return jsonify({"success": True, "roles": roles})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
@@ -28,9 +28,9 @@ def api_ci_roles():
 @api_candidate_info_bp.route("/api/candidate-info/by-role/<int:job_id>")
 @login_required
 def api_ci_candidates_for_role(job_id: int):
-    """Return Selected candidates for a given job_id."""
+    """Return all screened candidates for a given job_id."""
     try:
-        candidates = get_selected_candidates_for_role(job_id)
+        candidates = get_screened_candidates_for_role(job_id)
         return jsonify({"success": True, "candidates": candidates})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

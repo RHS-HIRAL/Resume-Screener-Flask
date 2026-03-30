@@ -223,7 +223,7 @@ def api_update_job_weights():
         return jsonify({"error": str(e)}), 500
 
 
-def _sync_ms_form_responses_logic() -> int:
+def _sync_ms_form_responses_logic() -> tuple[int, list[str]]:
     """Internal logic to fetch and map Excel form responses to candidates."""
     try:
         sp = SharePointMatchScoreUpdater()
@@ -233,6 +233,7 @@ def _sync_ms_form_responses_logic() -> int:
             excel_filenames = ["Full_Stack_Development_Intern", "candidate information"]
 
         total_sync_count = 0
+        synced_names = []
 
         # Determine all candidates that we need to consider for form sync
         all_candidates = get_all_candidates(min_score=0)
@@ -241,23 +242,19 @@ def _sync_ms_form_responses_logic() -> int:
         }
 
         if not candidate_map:
-            return 0
+            return 0, []
 
         for excel_filename in excel_filenames:
             rows = []
             try:
-                # 1. Try Shared SharePoint Site
-                rows = sp.get_excel_rows(excel_filename)
-
-                # 2. Try OneDrive (Personal) if SP fails
-                if not rows:
-                    possible_emails = ["deep.malusare@si2tech.com", Config.MAILBOX_USER]
-                    for email in possible_emails:
-                        if not email:
-                            continue
-                        rows = sp.get_onedrive_excel_rows(email, excel_filename)
-                        if rows:
-                            break
+                # Scan OneDrive for the Forms Excel file
+                possible_emails = ["deep.malusare@si2tech.com", Config.MAILBOX_USER]
+                for email in possible_emails:
+                    if not email:
+                        continue
+                    rows = sp.get_onedrive_excel_rows(email, excel_filename)
+                    if rows:
+                        break
             except Exception as e:
                 print(f"[SYNC ERROR] Error fetching '{excel_filename}': {e}")
                 continue
@@ -319,6 +316,7 @@ def _sync_ms_form_responses_logic() -> int:
                                 )
 
                             total_sync_count += 1
+                            synced_names.append(candidate.get("full_name", email_clean))
                             # Auto-calculate the Form Score upon sync
                             try:
                                 job_id = candidate.get("job_id")
@@ -349,18 +347,18 @@ def _sync_ms_form_responses_logic() -> int:
                             f"[SYNC ERROR] Row processing failed for {email_clean}: {e}"
                         )
 
-        return total_sync_count
+        return total_sync_count, synced_names
     except Exception as e:
         print(f"[SYNC ERROR] Fatal sync error: {e}")
-        return 0
+        return 0, []
 
 
 @api_candidates_bp.route("/api/sync-responses", methods=["POST"])
 @login_required
 def api_sync_responses():
     """Manual trigger for MS Form sync."""
-    count = _sync_ms_form_responses_logic()
-    return jsonify({"success": True, "updated_count": count})
+    count, names = _sync_ms_form_responses_logic()
+    return jsonify({"success": True, "updated_count": count, "synced_names": names})
 
 
 @api_candidates_bp.route("/api/backfill-form-scores", methods=["POST"])
