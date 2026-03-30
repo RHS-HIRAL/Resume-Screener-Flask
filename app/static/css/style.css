@@ -436,7 +436,6 @@ body {
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(255,255,255,0.02);
     z-index: -1;
-    border-bottom: 1px solid var(--border-color);
 }
 
 table {
@@ -444,6 +443,15 @@ table {
     border-collapse: collapse;
     table-layout: auto;
     min-width: 800px;
+}
+
+thead th {
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    letter-spacing: 0.05em;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
