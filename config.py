@@ -91,3 +91,12 @@ class Config:
         "TESSERACT_CMD", r"C:\Program Files\Tesseract-OCR\tesseract.exe"
     )
     OCR_DPI = int(os.getenv("OCR_DPI", "300"))
+
+    # ── Playwright / MS365 Browser Auth ───────────────────────────────────────
+    # Email that was used to log in via save_browser_auth_state().
+    MS365_LOGIN_EMAIL = os.getenv("MS365_LOGIN_EMAIL", "")
+    # Path to the stored browser session (cookies + localStorage).
+    # Relative paths are resolved from the project root at runtime.
+    PLAYWRIGHT_AUTH_STATE_PATH = os.getenv(
+        "PLAYWRIGHT_AUTH_STATE_PATH", "data_folder/playwright_auth_state.json"
+    )

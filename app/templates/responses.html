@@ -111,7 +111,7 @@
         </div>
     </div>
     <div style="display: flex; align-items: center; gap: 0.75rem;">
-        <label class="form-label" style="margin-bottom: 0;">Form Review:</label>
+        <label class="form-label" style="margin-bottom: 0;">Call Review:</label>
         <select id="statusFilter" class="form-control" style="width: auto; min-width: 150px;"
             onchange="loadResponses()">
             <option value="">All</option>
@@ -147,7 +147,6 @@
                     <th style="padding: 1rem 1.5rem;">Match Score</th>
                     <th style="padding: 1rem 1.5rem;">Form Score</th>
                     <th style="padding: 1rem 1.5rem;">Selection Status</th>
-                    <th style="padding: 1rem 1.5rem; text-align: center;">Action</th>
                 </tr>
             </thead>
             <tbody id="responsesTableBody">
@@ -187,14 +186,11 @@
         </div>
 
         <div
-            style="padding: 1.5rem 2rem; border-top: 1px solid var(--border-color); display: flex; gap: 1rem; background: rgba(0,0,0,0.2);">
-            <button class="btn"
-                style="flex: 1; background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2);"
-                onclick="updateStatus('Not Selected')">
-                <i class="fa-solid fa-user-xmark"></i> Not Selected
-            </button>
-            <button class="btn btn-primary" style="flex: 2;" onclick="updateStatus('Selected')">
-                <i class="fa-solid fa-user-check"></i> Select for Call
+            style="padding: 1rem 2rem; border-top: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem; background: rgba(0,0,0,0.2);">
+            <i class="fa-solid fa-circle-info" style="color: var(--accent-indigo); opacity: 0.6; font-size: 0.85rem;"></i>
+            <span style="font-size: 0.78rem; color: var(--text-secondary);">To update the selection decision, open the candidate in <strong style="color: var(--text-primary);">Candidate Profile</strong>.</span>
+            <button class="btn" style="margin-left: auto; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); padding: 0.35rem 0.85rem; font-size: 0.78rem;" onclick="document.getElementById('responseModal').style.display='none'">
+                Close
             </button>
         </div>
     </div>
@@ -487,13 +483,6 @@
                     <td style="padding: 1rem 1.5rem;">${matchScoreHtml}</td>
                     <td style="padding: 1rem 1.5rem;">${formScoreHtml}</td>
                     <td style="padding: 1rem 1.5rem;">${statusBadge}</td>
-                    <td style="padding: 1.2rem 1.5rem; text-align: center;">
-                        <div style="display: flex; gap: 0.75rem; justify-content: center;">
-                            <i class="fa-solid fa-circle-check action-icon check" title="Select" onclick="updateStatusViaRow(${c.id}, 'Selected')"></i>
-                            <i class="fa-solid fa-circle-xmark action-icon cancel" title="Not Selected" onclick="updateStatusViaRow(${c.id}, 'Not Selected')"></i>
-                            <i class="fa-solid fa-pencil action-icon pencil" title="Reset to Pending" onclick="updateStatusViaRow(${c.id}, 'Pending')"></i>
-                        </div>
-                    </td>
                 `;
                 body.appendChild(row);
             });

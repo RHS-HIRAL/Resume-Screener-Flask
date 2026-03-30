@@ -85,8 +85,8 @@ class SearchableSelect {
             div.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.select.selectedIndex = index;
-                this.trigger.innerHTML = `<span>${opt.textContent}</span><i class="fa-solid fa-chevron-down"></i>`;
                 this.close();
+                this.refresh();  // re-render so .selected class moves to the new option
                 this.select.dispatchEvent(new Event('change'));
             });
             
