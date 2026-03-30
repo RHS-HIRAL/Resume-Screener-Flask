@@ -543,8 +543,62 @@ class SharePointMatchScoreUpdater:
 
     # ── Excel / Forms Syncing ────────────────────────────────────────────────
 
+    def refresh_excel_workbook(self, item_id: str) -> None:
+        """
+        Force Microsoft Forms to flush pending responses into the Excel workbook.
+
+        Creates a persistent workbook session using the Graph API — equivalent to
+        opening the file in a browser — which triggers the Forms backend to append
+        any pending responses, then immediately closes the session.
+
+        Using persistChanges=True creates a more "real" editing session that is
+        more likely to trigger the Forms sync machinery.
+        """
+        drive_id = self._get_drive_id()
+        headers = self._get_headers()
+        session_url = (
+            f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item_id}"
+            "/workbook/createSession"
+        )
+        try:
+            resp = self.session.post(
+                session_url,
+                headers=headers,
+                json={"persistChanges": True},
+                timeout=30,
+            )
+            if resp.ok:
+                session_id = resp.json().get("id", "")
+                print(
+                    f"[SP EXCEL] Workbook session opened for item {item_id} (persistent) — Forms flush triggered."
+                )
+                # Close the session immediately; the flush already happened
+                if session_id:
+                    close_url = (
+                        f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item_id}"
+                        "/workbook/closeSession"
+                    )
+                    close_headers = {**headers, "workbook-session-id": session_id}
+                    try:
+                        self.session.post(close_url, headers=close_headers, timeout=15)
+                    except Exception:
+                        pass  # Closing is best-effort; the flush already happened
+            else:
+                print(
+                    f"[SP EXCEL] Could not open workbook session (status {resp.status_code}). Proceeding with download anyway."
+                )
+        except Exception as e:
+            # Non-fatal: if session creation fails, fall back to downloading as-is
+            print(f"[SP EXCEL] refresh_excel_workbook failed for item {item_id}: {e}")
+
     def get_excel_rows(self, filename: str) -> list[dict]:
-        """Search for an Excel file globally/in folders and parse via pandas."""
+        """Search for an Excel file globally/in folders and parse via pandas.
+
+        Before downloading the file, we create a transient workbook session via the
+        Graph API. This 'opens' the workbook invisibly in the background, which is the
+        trigger Microsoft Forms uses to flush pending form responses into the Excel file.
+        Without this step the downloaded .xlsx may be missing the latest submissions.
+        """
         drive_id = self._get_drive_id()
         candidates = self.find_matching_items(filename)
         if not candidates and not filename.endswith(".xlsx"):
@@ -577,6 +631,16 @@ class SharePointMatchScoreUpdater:
             xlsx_candidates[0],
         )
 
+        # ── Refresh the workbook before downloading to flush pending form responses ──
+        self.refresh_excel_workbook(item["id"])
+
+        import time
+
+        print(
+            "[SP EXCEL] Waiting 20 seconds for SharePoint to save pending form responses..."
+        )
+        time.sleep(20)
+
         content_url = f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item['id']}/content"
         resp = self.session.get(
             content_url, headers=self._get_headers(), timeout=60, allow_redirects=True
@@ -595,7 +659,25 @@ class SharePointMatchScoreUpdater:
             return []
 
     def get_onedrive_excel_rows(self, user_email: str, filename: str) -> list[dict]:
-        """Search for an Excel file in a specific user's OneDrive."""
+        """Search for an Excel file in a specific user's OneDrive and read its rows.
+
+        Microsoft Forms only writes new responses to the linked Excel file when
+        the workbook is actively opened/loaded by the Excel server engine.
+
+        This method uses the Graph API workbook session approach instead of a
+        headless browser — it creates a persistent editing session on the server,
+        reads the worksheet data through that session (which forces the Excel
+        engine to load and triggers Forms to flush pending responses), then
+        parses the result.
+
+        Flow:
+        1. Find the Excel file in the user's OneDrive
+        2. Create a persistent workbook session via Graph API
+        3. Read the used range through the session (triggers Forms sync)
+        4. Wait for Forms to flush, then read again
+        5. Close the session
+        6. Return parsed rows (falls back to raw .xlsx download if API read fails)
+        """
         from urllib.parse import quote as _quote
 
         encoded_filename = _quote(filename, safe="")
@@ -618,8 +700,448 @@ class SharePointMatchScoreUpdater:
             xlsx_results[0],
         )
 
+        item_id = item["id"]
+        item_id = item["id"]
+
+        # Get the webUrl and force edit mode (Forms only syncs in edit mode, not view)
+        web_url = ""
+        try:
+            meta_resp = self.session.get(
+                f"{self.GRAPH_BASE}/users/{user_email}/drive/items/{item_id}",
+                headers=self._get_headers(),
+                timeout=30,
+            )
+            if meta_resp.ok:
+                raw_url = meta_resp.json().get("webUrl", "")
+                # Replace action=default with action=edit so Excel Online opens in
+                # edit mode — Microsoft Forms only syncs pending responses when the
+                # file is actively opened for editing by the file owner.
+                if raw_url:
+                    web_url = raw_url.replace("action=default", "action=edit")
+                    if "action=" not in web_url:
+                        web_url += "&action=edit"
+        except Exception:
+            pass
+
+        # ── Run the workbook session + browser open + before/after download comparison ──
+        return self._sync_and_read_via_workbook_session(user_email, item_id, web_url)
+
+    def _sync_and_read_via_workbook_session(
+        self, user_email: str, item_id: str, web_url: str = ""
+    ) -> list[dict]:
+        """
+        Force Microsoft Forms to sync pending responses into the Excel workbook,
+        then read the updated data.
+
+        Strategy:
+        1. Create a persistent workbook session (loads the Excel engine server-side)
+        2. Confirm the session can read the file's worksheets and content
+        3. Trigger a full workbook recalculation (fires any data-refresh connectors)
+        4. Close the session (persists server-side changes)
+        5. Download the raw .xlsx NOW as a baseline row-count snapshot
+        6. Wait 25s for the Microsoft Forms connector to write pending responses
+        7. Download the raw .xlsx AGAIN and compare row counts to detect sync
+        8. Return the latest rows (always the freshest download)
+        """
+        import time
+
+        base_url = f"{self.GRAPH_BASE}/users/{user_email}/drive/items/{item_id}"
+        headers = self._get_headers()
+        session_id = ""
+
+        try:
+            # ── Step 1: Create a persistent workbook session ──
+            # print("[OneDrive EXCEL] Creating workbook session to load Excel engine...")
+            session_resp = self.session.post(
+                f"{base_url}/workbook/createSession",
+                headers=headers,
+                json={"persistChanges": True},
+                timeout=30,
+            )
+
+            if not session_resp.ok:
+                print(
+                    f"[OneDrive EXCEL] createSession failed ({session_resp.status_code}): "
+                    f"{session_resp.text[:300]}"
+                )
+                # Fall back to a single raw download without sync trigger
+                return self._download_onedrive_excel_raw(user_email, item_id)
+
+            session_id = session_resp.json().get("id", "")
+            # print(f"[OneDrive EXCEL] ✅ Workbook session created (id={session_id[:40]}...)")
+            wb_headers = {**headers, "workbook-session-id": session_id}
+
+            # ── Step 2: List worksheets to confirm the file is open and accessible ──
+            sheets_resp = self.session.get(
+                f"{base_url}/workbook/worksheets",
+                headers=wb_headers,
+                timeout=30,
+            )
+            sheet_name = "Sheet1"
+            if sheets_resp.ok:
+                sheets = sheets_resp.json().get("value", [])
+                if sheets:
+                    sheet_name = sheets[0].get("name", "Sheet1")
+                    # print(f"[OneDrive EXCEL] ✅ File is open in Excel engine. Found {len(sheets)} worksheet(s)")
+                else:
+                    print(
+                        "[OneDrive EXCEL] ⚠️ No worksheets found — file may be empty or corrupt."
+                    )
+            else:
+                print(
+                    f"[OneDrive EXCEL] ⚠️ Could not list worksheets ({sheets_resp.status_code}) "
+                    f"— file may not have loaded properly in the engine."
+                )
+
+            # ── Step 3: Read used range to confirm the content is accessible ──
+            from urllib.parse import quote as _q
+
+            encoded_sheet = _q(sheet_name, safe="")
+            used_range_url = (
+                f"{base_url}/workbook/worksheets('{encoded_sheet}')/usedRange"
+            )
+
+            range_resp = self.session.get(
+                used_range_url, headers=wb_headers, timeout=60
+            )
+            if range_resp.ok:
+                values = range_resp.json().get("values", [])
+                session_row_count = max(0, len(values) - 1)
+                # print(f"[OneDrive EXCEL] ✅ File content confirmed: {session_row_count} data rows visible in active session.")
+            else:
+                print(
+                    f"[OneDrive EXCEL] ⚠️ Could not read used range ({range_resp.status_code}) "
+                    f"— session may not have full access to file content."
+                )
+
+            # ── Step 4: Trigger a full workbook recalculation ──
+            # print("[OneDrive EXCEL] Triggering workbook recalculation (fires data-refresh connectors)...")
+            calc_resp = self.session.post(
+                f"{base_url}/workbook/application/calculate",
+                headers=wb_headers,
+                json={"calculationType": "FullRebuild"},
+                timeout=30,
+            )
+            if calc_resp.ok or calc_resp.status_code == 204:
+                print("[OneDrive EXCEL] ✅ Workbook recalculation triggered.")
+
+            else:
+                print(
+                    f"[OneDrive EXCEL] ⚠️ Recalculation returned {calc_resp.status_code} "
+                    f"(may still work — continuing)."
+                )
+
+            # ── Step 5: Close the session (flushes any server-side pending writes) ──
+            try:
+                self.session.post(
+                    f"{base_url}/workbook/closeSession",
+                    headers=wb_headers,
+                    timeout=15,
+                )
+                # print("[OneDrive EXCEL] Workbook session closed (server-side changes flushed).")
+            except Exception:
+                pass
+            session_id = ""  # Mark closed so finally block skips double-close
+
+            # ── Step 6: Download baseline snapshot BEFORE opening the browser ──
+            # Take the snapshot NOW so we have a true pre-sync row count to compare against.
+            # print("[OneDrive EXCEL] Downloading baseline .xlsx snapshot (pre-browser-sync)...")
+            baseline_rows = self._download_onedrive_excel_raw(user_email, item_id)
+            baseline_count = len(baseline_rows)
+            # print(f"[OneDrive EXCEL] Baseline: {baseline_count} rows in raw file.")
+
+            # ── Step 7: Open in browser as real user (edit mode) — strongest sync trigger ──
+            # This is the primary trigger. Excel Online in edit mode activates the
+            # Microsoft Forms connector which writes any pending form responses.
+            if web_url:
+                self._open_excel_with_stored_auth(web_url)
+            else:
+                # No URL — wait 30s anyway to give the API session recalculation time
+                # print("[OneDrive EXCEL] ⏳ Waiting 30s for API session to trigger Forms sync...")
+                time.sleep(30)
+
+            # ── Step 8: Download again and compare row counts ──
+            # print("[OneDrive EXCEL] Downloading updated .xlsx (after browser sync)...")
+            updated_rows = self._download_onedrive_excel_raw(user_email, item_id)
+            updated_count = len(updated_rows)
+
+            if updated_count > baseline_count:
+                new_count = updated_count - baseline_count
+                print(
+                    f"[OneDrive EXCEL] ✅ Forms sync DETECTED — "
+                    f"{new_count} new response(s) added ({baseline_count} → {updated_count} rows)."
+                )
+            elif updated_count == baseline_count:
+                print(
+                    f"[OneDrive EXCEL] ℹ️ No new responses detected (row count unchanged: {updated_count}). "
+                    f"All pending responses may already be synced, or Forms has no new submissions."
+                )
+            else:
+                print(
+                    f"[OneDrive EXCEL] ⚠️ Row count decreased ({baseline_count} → {updated_count}). "
+                    f"File may have been modified externally during the sync wait."
+                )
+
+            return updated_rows
+
+        except Exception as e:
+            print(f"[OneDrive EXCEL] Workbook session error: {e}")
+            # Best-effort fallback: raw download without sync trigger
+            try:
+                return self._download_onedrive_excel_raw(user_email, item_id)
+            except Exception:
+                return []
+
+        finally:
+            # Close session if still open (e.g. error occurred before step 5)
+            if session_id:
+                try:
+                    close_headers = {**headers, "workbook-session-id": session_id}
+                    self.session.post(
+                        f"{base_url}/workbook/closeSession",
+                        headers=close_headers,
+                        timeout=15,
+                    )
+                    # print("[OneDrive EXCEL] Workbook session closed (finally block).")
+                except Exception:
+                    pass
+
+    def _open_excel_with_stored_auth(self, web_url: str) -> None:
+        """
+        Open the Excel Online URL in a headless Playwright browser using
+        STORED authentication state, simulating a real user editing the file.
+
+        This is the primary Forms sync trigger — Microsoft Forms only writes
+        pending responses when the Excel file is opened in EDIT mode by an
+        authenticated user. This method:
+
+        1. Loads stored cookies (saved via save_browser_auth_state)
+        2. Navigates to the Excel Online URL with action=edit
+        3. Waits for Excel Online to fully render (networkidle + title check)
+        4. Simulates real user interaction (click a cell, scroll) so the
+           session is indistinguishable from a real browser session
+        5. Waits 45s — gives Microsoft Forms time to detect the active edit
+           session and flush any pending form submissions into the sheet
+        6. Closes the browser (Microsoft saves state on close)
+        """
+        import time
+        import os
+
+        # Location of the stored auth state file (data_folder)
+        auth_state_path = os.path.join(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            ),
+            "data_folder",
+            "playwright_auth_state.json",
+        )
+
+        if not os.path.exists(auth_state_path):
+            print(
+                "[OneDrive EXCEL] ℹ️ No stored browser auth state found. "
+                "Skipping browser-based sync trigger. "
+                "Run save_browser_auth_state() once to enable this."
+            )
+            return
+
+        try:
+            from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+
+            # print("[OneDrive EXCEL] Opening Excel Online in headless browser (edit mode, simulating real user)...")
+            with sync_playwright() as p:
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--no-sandbox",
+                    ],
+                )
+                context = browser.new_context(
+                    storage_state=auth_state_path,
+                    viewport={"width": 1920, "height": 1080},
+                    user_agent=(
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/120.0.0.0 Safari/537.36"
+                    ),
+                    # Mimic real browser locale/timezone
+                    locale="en-US",
+                    timezone_id="Asia/Kolkata",
+                )
+                page = context.new_page()
+                try:
+                    # print(f"[OneDrive EXCEL] Navigating to: {web_url[:100]}...")
+
+                    # Use networkidle to wait for Excel Online to fully load
+                    # (not just domcontentloaded, which misses the JS app)
+                    try:
+                        page.goto(web_url, wait_until="networkidle", timeout=90000)
+                    except PWTimeout:
+                        # networkidle can time out on heavy SPAs — that's fine
+                        pass
+
+                    # Wait up to 60s for Excel Online to fully render
+                    excel_loaded = False
+                    for attempt in range(12):  # 12 × 5s = 60s
+                        time.sleep(5)
+                        title = page.title()
+                        url = page.url
+
+                        if "login.microsoftonline" in url or "login.live" in url:
+                            print(
+                                "[OneDrive EXCEL] ⚠️ Redirected to login page — "
+                                "stored auth may have expired. "
+                                "Re-run save_browser_auth_state() to refresh."
+                            )
+                            break
+
+                        is_excel_title = any(
+                            kw in title.lower() for kw in ["excel", ".xlsx", "workbook"]
+                        )
+                        is_excel_url = (
+                            "excel" in url.lower() or "_layouts" in url.lower()
+                        )
+
+                        if is_excel_title or is_excel_url:
+                            excel_loaded = True
+                            # print(f"[OneDrive EXCEL] ✅ Excel Online confirmed open")
+                            break
+
+                        # print(f"[OneDrive EXCEL] Waiting for Excel Online to render...")
+
+                    if excel_loaded:
+                        # ── Simulate real user activity ──────────────────────────────
+                        # Click on the spreadsheet body to activate the edit session.
+                        # Microsoft Forms detects active edit sessions by checking
+                        # whether the workbook has been interacted with.
+                        # print("[OneDrive EXCEL] Simulating user interactions to activate edit session...")
+                        try:
+                            # Try to click the spreadsheet grid (Excel Online renders
+                            # the grid as a canvas — click near center of the viewport)
+                            page.mouse.click(960, 400)
+                            time.sleep(1)
+
+                            # Scroll down slightly (simulates browsing the sheet)
+                            page.mouse.wheel(0, 300)
+                            time.sleep(1)
+
+                            # Click again to ensure the cell editor is active
+                            page.mouse.click(960, 400)
+                            time.sleep(1)
+
+                            # Press Escape to exit any cell edit without changing data
+                            page.keyboard.press("Escape")
+                            time.sleep(0.5)
+
+                            # print("[OneDrive EXCEL] ✅ User interactions simulated.")
+                        except Exception as interact_err:
+                            print(
+                                f"[OneDrive EXCEL] User interaction warning: {interact_err}"
+                            )
+
+                        # ── Wait for Forms to flush responses ─────────────────────────
+                        # Microsoft Forms watches for active edit sessions. Once it
+                        # detects one, it queues a write of pending responses.
+                        # 45s is enough for the queue to be processed in most cases.
+                        # print("[OneDrive EXCEL] ⏳ Waiting 30s for Microsoft Forms to flush pending responses...")
+                        time.sleep(30)
+                        # print("[OneDrive EXCEL] ✅ Browser sync wait complete.")
+                    else:
+                        print(
+                            "[OneDrive EXCEL] ⚠️ Excel Online did not fully render — "
+                            "waiting 15s anyway (partial load may still trigger sync)."
+                        )
+                        time.sleep(15)
+
+                except Exception as nav_err:
+                    print(f"[OneDrive EXCEL] Browser navigation error: {nav_err}")
+                    time.sleep(10)
+                finally:
+                    context.close()
+                    browser.close()
+                    # print("[OneDrive EXCEL] Headless browser closed.")
+
+        except ImportError:
+            print(
+                "[OneDrive EXCEL] Playwright not installed — skipping browser sync trigger."
+            )
+        except Exception as e:
+            print(f"[OneDrive EXCEL] Browser sync error: {e}")
+
+    def save_browser_auth_state(
+        self, login_url: str = "https://www.office.com"
+    ) -> None:
+        """
+        One-time setup: open a visible browser, let the user log into Microsoft 365,
+        then save the authenticated session (cookies + storage) to disk.
+
+        The saved state is reused by _open_excel_with_stored_auth() on every sync
+        without requiring another login.
+
+        Usage (run once from a Python shell or a separate script):
+            from app.services.sharepoint import SharePointMatchScoreUpdater
+            sp = SharePointMatchScoreUpdater()
+            sp.save_browser_auth_state()   # Browser opens — log in and close it
+
+        The auth state is saved to playwright_auth_state.json in the project root.
+        """
+        import os
+
+        auth_state_path = os.path.join(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            ),
+            "data_folder",
+            "playwright_auth_state.json",
+        )
+
+        os.makedirs(os.path.dirname(auth_state_path), exist_ok=True)
+
+        try:
+            from playwright.sync_api import sync_playwright
+
+            print("[OneDrive EXCEL] Opening browser for Microsoft 365 login...")
+            print(
+                "[OneDrive EXCEL] Log in as deep.malusare@si2tech.com, then CLOSE the browser."
+            )
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=False)  # Visible window for login
+                context = browser.new_context(
+                    viewport={"width": 1400, "height": 900},
+                )
+                page = context.new_page()
+                page.goto(login_url)
+
+                # Wait for user to complete login and close the window
+                try:
+                    # Wait until the user closes the browser (page closes)
+                    page.wait_for_url("**/office.com**", timeout=120000)
+                    print("[OneDrive EXCEL] Login detected. Saving auth state...")
+                except Exception:
+                    print(
+                        "[OneDrive EXCEL] Saving auth state (timeout or manual close)..."
+                    )
+
+                context.storage_state(path=auth_state_path)
+                context.close()
+                browser.close()
+
+            print(f"[OneDrive EXCEL] ✅ Auth state saved to: {auth_state_path}")
+            print(
+                "[OneDrive EXCEL] Future syncs will use this stored session automatically."
+            )
+
+        except ImportError:
+            print(
+                "[OneDrive EXCEL] Playwright not installed. Run: pip install playwright && playwright install chromium"
+            )
+        except Exception as e:
+            print(f"[OneDrive EXCEL] Failed to save auth state: {e}")
+
+    def _download_onedrive_excel_raw(self, user_email: str, item_id: str) -> list[dict]:
+        """Download the raw .xlsx binary from OneDrive and parse with pandas."""
         content_url = (
-            f"{self.GRAPH_BASE}/users/{user_email}/drive/items/{item['id']}/content"
+            f"{self.GRAPH_BASE}/users/{user_email}/drive/items/{item_id}/content"
         )
         resp = self.session.get(
             content_url, headers=self._get_headers(), timeout=60, allow_redirects=True
@@ -632,6 +1154,9 @@ class SharePointMatchScoreUpdater:
             for col in df.select_dtypes(include=["datetime", "datetimetz"]).columns:
                 df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
             df = df.astype(object).where(pd.notnull(df), None)
+            print(
+                f"[OneDrive EXCEL] Downloaded and parsed {len(df)} rows from raw .xlsx."
+            )
             return df.to_dict(orient="records")
         except Exception as e:
             print(f"[OneDrive] Pandas error: {e}")

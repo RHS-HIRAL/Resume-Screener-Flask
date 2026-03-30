@@ -440,13 +440,16 @@ def _format_role_display(role_name: str) -> str:
     return name.replace("_", " ")
 
 
-def get_roles_with_selected_candidates() -> list:
+def get_roles_with_candidates() -> list:
+    """
+    Fetches all roles that have at least one screened candidate,
+    regardless of selection status or form submission.
+    """
     with get_cursor() as cur:
         cur.execute("""
             SELECT DISTINCT j.id, j.role_name
             FROM candidates c
             JOIN jobs j ON c.job_id = j.id
-            WHERE LOWER(c.selection_status) = 'selected'
             ORDER BY j.role_name
         """)
         rows = cur.fetchall()
@@ -460,14 +463,18 @@ def get_roles_with_selected_candidates() -> list:
     ]
 
 
-def get_selected_candidates_for_role(job_id: int) -> list:
+def get_screened_candidates_for_role(job_id: int) -> list:
+    """
+    Fetches all candidates for a specific role so they can be
+    viewed and managed in the profile section immediately after screening.
+    """
     with get_cursor() as cur:
         cur.execute(
             """
-            SELECT id, candidate_id, full_name
+            SELECT id, candidate_id, full_name, selection_status, match_score
             FROM candidates
-            WHERE job_id = %s AND LOWER(selection_status) = 'selected'
-            ORDER BY full_name ASC
+            WHERE job_id = %s
+            ORDER BY match_score DESC, full_name ASC
         """,
             (job_id,),
         )
