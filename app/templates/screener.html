@@ -320,6 +320,9 @@
     let bulkResults = [];
     let rescoreSet = new Set();
 
+    let jdSelectUI = null;
+    let folderSelectUI = null;
+
     // Queue for auto-confirm modal (drains one-by-one, non-dismissible)
     let rescoreConfirmQueue = [];
     let rescoreModalActive = false;
@@ -383,6 +386,12 @@
     // ══════════════════════════════════════════════════════════════════════
 
     async function initPage() {
+        const jdSelect = document.getElementById('sp_jd_select');
+        const folderSelect = document.getElementById('sp_folder_select');
+        if (jdSelect && folderSelect) {
+            jdSelectUI = new SearchableSelect(jdSelect);
+            folderSelectUI = new SearchableSelect(folderSelect);
+        }
         setupListeners();
         const savedData = sessionStorage.getItem('spData');
         if (savedData) {
@@ -441,6 +450,9 @@
             folderSelect.value = prevFolder;
             folderSelect.dispatchEvent(new Event('change'));
         }
+        
+        if (jdSelectUI) jdSelectUI.refresh();
+        if (folderSelectUI) folderSelectUI.refresh();
     }
 
     function unlockJdSelect() {
@@ -449,12 +461,14 @@
         jdSelect.style.opacity = '1';
         document.getElementById('jdAutoLabel').style.display = 'none';
         document.getElementById('jdModifyBtn').style.display = 'none';
+        if (jdSelectUI) jdSelectUI.updateDisabledState();
     }
 
     function lockJdSelect() {
         const jdSelect = document.getElementById('sp_jd_select');
         jdSelect.disabled = true;
         jdSelect.style.opacity = '0.6';
+        if (jdSelectUI) jdSelectUI.updateDisabledState();
     }
 
     function setupListeners() {
@@ -487,6 +501,7 @@
                         lockJdSelect();
                         autoLabel.style.display = 'inline-block';
                         modifyBtn.style.display = 'inline-flex';
+                        if (jdSelectUI) jdSelectUI.refresh();
                     }
                 }
                 // If no match found, unlock JD so user picks manually
@@ -498,6 +513,10 @@
                     if (!jdSelect.value) {
                         jdSelect.querySelector('option[value=""]').textContent = '— Select JD —';
                     }
+                    if (jdSelectUI) {
+                        jdSelectUI.updateDisabledState();
+                        jdSelectUI.refresh();
+                    }
                 }
             } else {
                 // No folder selected — reset JD
@@ -506,6 +525,7 @@
                 jdSelect.querySelector('option[value=""]').textContent = '— Select a folder first —';
                 autoLabel.style.display = 'none';
                 modifyBtn.style.display = 'none';
+                if (jdSelectUI) jdSelectUI.refresh();
             }
 
             if (folder && spData.resumes[folder]) {

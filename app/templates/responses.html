@@ -579,7 +579,12 @@
         }
     }
 
-    document.getElementById('roleFilter').onchange = loadResponses;
+    let roleFilterUI = null;
+    const roleFilterEl = document.getElementById('roleFilter');
+    if (roleFilterEl) {
+        roleFilterUI = new SearchableSelect(roleFilterEl);
+        roleFilterEl.addEventListener('change', loadResponses);
+    }
     document.addEventListener('DOMContentLoaded', loadResponses);
 
     function toggleWeightPopover() {

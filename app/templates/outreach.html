@@ -632,7 +632,12 @@
         }
     };
 
-    document.getElementById('roleFilter').onchange = loadCandidates;
+    let roleFilterUI = null;
+    const roleFilterEl = document.getElementById('roleFilter');
+    if (roleFilterEl) {
+        roleFilterUI = new SearchableSelect(roleFilterEl);
+        roleFilterEl.addEventListener('change', loadCandidates);
+    }
     document.getElementById('scoreFilter').oninput = loadCandidates;
 
     // Report Drawer Logic

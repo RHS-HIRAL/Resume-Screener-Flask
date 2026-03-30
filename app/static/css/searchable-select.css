@@ -1,0 +1,109 @@
+/* ── Searchable Select UI ───────────────────────────────── */
+.custom-select-wrapper {
+    position: relative;
+    user-select: none;
+    width: 100%;
+}
+.custom-select-wrapper select {
+    display: none;
+}
+.custom-select-trigger {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 42px;
+}
+.custom-select-trigger:hover {
+    border-color: rgba(6, 182, 212, 0.4);
+}
+.custom-select-trigger span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: calc(100% - 20px);
+    display: inline-block;
+}
+.custom-select-trigger.open {
+    border-color: var(--accent-indigo);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.custom-select-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 100%;
+    width: max-content;
+    max-width: 60vw;
+    background: var(--card-bg);
+    border: 1px solid var(--accent-indigo);
+    border-top: none;
+    border-bottom-left-radius: 6px;
+    border-bottom-right-radius: 6px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    z-index: 100;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+}
+.custom-select-dropdown.open {
+    display: flex;
+}
+.custom-select-search {
+    padding: 0.6rem;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(0,0,0,0.02);
+}
+.custom-select-search input {
+    width: 100%;
+    padding: 0.5rem 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    outline: none;
+}
+.custom-select-search input:focus {
+    border-color: var(--accent-indigo);
+}
+.custom-select-options {
+    max-height: 250px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.3rem 0;
+}
+.custom-option {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.15s;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.4;
+}
+.custom-option:hover, .custom-option.selected {
+    background: rgba(6, 182, 212, 0.08);
+    color: var(--accent-indigo);
+}
+.custom-option.no-results {
+    color: var(--text-secondary);
+    font-style: italic;
+    cursor: default;
+    text-align: center;
+    padding: 1rem;
+}
+.custom-option.no-results:hover {
+    background: transparent;
+    color: var(--text-secondary);
+}

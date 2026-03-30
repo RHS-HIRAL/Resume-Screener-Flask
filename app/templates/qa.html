@@ -157,8 +157,8 @@
             <p style="font-size: 0.85rem; color: var(--text-secondary); text-align: center; padding: 3rem 0;">
                 Select a candidate to see their past scores.
             </p>
-        </div>
     </div>
+</div>
 </div>
 
 <!-- Safely pass Jinja variables to JavaScript -->
@@ -174,6 +174,16 @@
     let loadedQaText = '';          // raw QA text from SharePoint
     let loadedQuestions = [];        // parsed question objects [{number, text, expected_answer, red_flags}]
     let detectedQuestionNumbers = []; // auto-detected from transcript
+
+    let roleFilterUI = null;
+    let candidateSelectUI = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const roleFilter = document.getElementById('role_filter');
+        const candidateSelect = document.getElementById('candidate_id');
+        if (roleFilter) roleFilterUI = new SearchableSelect(roleFilter);
+        if (candidateSelect) candidateSelectUI = new SearchableSelect(candidateSelect);
+    });
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -214,6 +224,7 @@
             opt.style.display = (!role || opt.getAttribute('data-role') === role) ? '' : 'none';
         });
         select.value = '';
+        if (candidateSelectUI) candidateSelectUI.refresh();
         resetAll();
     }
 
