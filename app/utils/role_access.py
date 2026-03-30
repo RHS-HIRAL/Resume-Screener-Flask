@@ -65,11 +65,6 @@ def can_write_sensitive(role: str) -> bool:
     return _check(role, "write_sensitive")
 
 
-def can_write_candidates(role: str) -> bool:
-    """Return True if *role* is allowed to modify non-sensitive candidate data."""
-    return _check(role, "write_candidates")
-
-
 def display_role(role: str) -> str:
     """Human-readable role label."""
     return {

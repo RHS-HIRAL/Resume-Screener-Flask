@@ -6,6 +6,7 @@ data_folder
 tests/
 pytest_out.txt
 cov_report.txt
+.claude
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

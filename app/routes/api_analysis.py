@@ -12,7 +12,6 @@ from flask_login import login_required, current_user
 from app.db.jobs import upsert_job
 from app.db.candidates import (
     save_candidate,
-    update_candidate_match_score,
     update_candidate_resume_filename,
     finalize_rescore,
     get_breakdown_by_resume,

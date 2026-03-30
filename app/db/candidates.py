@@ -131,17 +131,6 @@ def get_breakdown_by_resume(resume_filename: str, job_id: int) -> Optional[dict]
         return None
 
 
-def get_unsynced_candidates() -> List[Dict]:
-    with get_cursor() as cur:
-        cur.execute("""
-            SELECT c.id, c.email, c.full_name, c.job_id, j.role_name
-            FROM candidates c
-            JOIN jobs j ON c.job_id = j.id
-            WHERE c.form_responses IS NULL
-        """)
-        return [dict(r) for r in cur.fetchall()]
-
-
 def get_all_candidates(min_score: int = 0) -> list:
     """
     Returns candidates WITHOUT decrypting sensitive fields.
@@ -344,15 +333,6 @@ def update_candidate_qa_score(candidate_id: str, qa_score: int) -> bool:
         cur.execute(
             "UPDATE candidates SET qa_score = %s WHERE candidate_id = %s",
             (qa_score, candidate_id),
-        )
-        return cur.rowcount > 0
-
-
-def update_candidate_match_score(candidate_db_id: int, match_score: int) -> bool:
-    with get_cursor(commit=True) as cur:
-        cur.execute(
-            "UPDATE candidates SET match_score = %s WHERE id = %s",
-            (match_score, candidate_db_id),
         )
         return cur.rowcount > 0
 

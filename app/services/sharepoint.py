@@ -591,73 +591,6 @@ class SharePointMatchScoreUpdater:
             # Non-fatal: if session creation fails, fall back to downloading as-is
             print(f"[SP EXCEL] refresh_excel_workbook failed for item {item_id}: {e}")
 
-    def get_excel_rows(self, filename: str) -> list[dict]:
-        """Search for an Excel file globally/in folders and parse via pandas.
-
-        Before downloading the file, we create a transient workbook session via the
-        Graph API. This 'opens' the workbook invisibly in the background, which is the
-        trigger Microsoft Forms uses to flush pending form responses into the Excel file.
-        Without this step the downloaded .xlsx may be missing the latest submissions.
-        """
-        drive_id = self._get_drive_id()
-        candidates = self.find_matching_items(filename)
-        if not candidates and not filename.endswith(".xlsx"):
-            candidates = self.find_matching_items(filename + ".xlsx")
-
-        if not candidates:
-            for folder in ["/", "General", "Recordings"]:
-                try:
-                    items = self._list_folder_children(folder)
-                    candidates = [
-                        i
-                        for i in items
-                        if i["name"].lower().startswith(filename.lower())
-                    ]
-                    if candidates:
-                        break
-                except Exception:
-                    continue
-
-        xlsx_candidates = [c for c in candidates if c["name"].lower().endswith(".xlsx")]
-        if not xlsx_candidates:
-            return []
-
-        item = next(
-            (
-                c
-                for c in xlsx_candidates
-                if c["name"].lower() in [filename.lower(), (filename + ".xlsx").lower()]
-            ),
-            xlsx_candidates[0],
-        )
-
-        # ── Refresh the workbook before downloading to flush pending form responses ──
-        self.refresh_excel_workbook(item["id"])
-
-        import time
-
-        print(
-            "[SP EXCEL] Waiting 20 seconds for SharePoint to save pending form responses..."
-        )
-        time.sleep(20)
-
-        content_url = f"{self.GRAPH_BASE}/drives/{drive_id}/items/{item['id']}/content"
-        resp = self.session.get(
-            content_url, headers=self._get_headers(), timeout=60, allow_redirects=True
-        )
-        if not resp.ok:
-            return []
-
-        try:
-            df = pd.read_excel(io.BytesIO(resp.content), engine="openpyxl")
-            for col in df.select_dtypes(include=["datetime", "datetimetz"]).columns:
-                df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
-            df = df.astype(object).where(pd.notnull(df), None)
-            return df.to_dict(orient="records")
-        except Exception as e:
-            print(f"[SP] Pandas error reading Excel: {e}")
-            return []
-
     def get_onedrive_excel_rows(self, user_email: str, filename: str) -> list[dict]:
         """Search for an Excel file in a specific user's OneDrive and read its rows.
 
@@ -1105,11 +1038,11 @@ class SharePointMatchScoreUpdater:
         try:
             from playwright.sync_api import sync_playwright
 
-            login_email = Config.MS365_LOGIN_EMAIL or "your-ms365-account@yourdomain.com"
-            print("[OneDrive EXCEL] Opening browser for Microsoft 365 login...")
-            print(
-                f"[OneDrive EXCEL] Log in as {login_email}, then CLOSE the browser."
+            login_email = (
+                Config.MS365_LOGIN_EMAIL or "your-ms365-account@yourdomain.com"
             )
+            print("[OneDrive EXCEL] Opening browser for Microsoft 365 login...")
+            print(f"[OneDrive EXCEL] Log in as {login_email}, then CLOSE the browser.")
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=False)  # Visible window for login
                 context = browser.new_context(
